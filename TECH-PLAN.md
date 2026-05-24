@@ -9,7 +9,9 @@
   - `startActivity`
   - `updateActivity`
   - `endActivity`
-- Input/output type definitions
+- Optional later method:
+  - `getPlatformCapabilities`
+- Shared input/output type definitions
 
 ### Native iOS Layer
 - Swift native module bridge for RN
@@ -23,10 +25,16 @@
 - ActivityConfiguration UI
 - Dynamic Island presentation where supported
 
+### Native Android Layer
+- Kotlin native module bridge for RN
+- Ongoing notification / live update notification path
+- Notification manager integration
+- Optional foreground service support depending on implementation needs
+
 ### Example App
 - Buttons/actions to start/update/end
 - Sample payload editor or fixed demo payload
-- Clear setup notes
+- Clear setup notes for both platforms
 
 ---
 
@@ -50,6 +58,9 @@ Possible first public methods:
 - `updateActivity(activityId: string, content: LiveActivityContent): Promise<void>`
 - `endActivity(activityId: string): Promise<void>`
 
+Later:
+- `getPlatformCapabilities(): Promise<{ iosLiveActivity: boolean; androidLiveUpdate: boolean }>`
+
 ---
 
 ## 3. iOS Notes
@@ -60,36 +71,38 @@ Possible first public methods:
 
 ---
 
-## 4. Android Strategy
-Initial MVP:
-- return unsupported
-
-Future path:
-- optional Android module using foreground service + ongoing notification
-- do not force same UI promises as iOS Live Activity
+## 4. Android Notes
+- Android implementation should center on live update / promoted ongoing notification patterns
+- Foreground service may be necessary depending on the scenario
+- The library should expose a common lifecycle API without promising identical presentation
+- Need to model notification channel and permission/setup needs clearly in docs
 
 ---
 
 ## 5. Suggested Build Phases
-1. Repo scaffold + docs
+1. Repo scaffold + docs refresh
 2. JS API contract and type surface
 3. iOS native module stub
-4. example iOS app with extension target
-5. startActivity working path
-6. updateActivity working path
-7. endActivity working path
-8. docs hardening
+4. Android native module stub
+5. example app baseline
+6. iOS startActivity working path
+7. Android startActivity working path
+8. iOS update/end working path
+9. Android update/end working path
+10. docs hardening
 
 ---
 
 ## 6. Open Questions
 - Should library use classic bridge first or aim for TurboModule immediately?
-- Should v1 ship a single opinionated activity content schema or allow developer-defined schema earlier?
-- How much of extension setup can realistically be automated?
+- Should v1 ship one opinionated content schema or allow configurable schema earlier?
+- How much of iOS extension setup can realistically be automated?
+- How opinionated should Android notification/channel/service setup be?
 
 ## 7. Recommendation
 Start with:
 - classic RN native module
 - one small opinionated content schema
 - bare React Native example app
-- iOS only in first working release
+- iOS + Android baseline from the start
+- honest docs about platform behavior differences
