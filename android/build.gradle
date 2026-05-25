@@ -1,0 +1,49 @@
+buildscript {
+  ext.kotlin_version = ext.kotlin_version ?: '1.9.24'
+
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath 'com.android.tools.build:gradle:8.1.1'
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+def safeExtGet(prop, fallback) {
+  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+android {
+  namespace 'com.woobottle.liveactivity'
+  compileSdkVersion safeExtGet('compileSdkVersion', 34)
+
+  defaultConfig {
+    minSdkVersion safeExtGet('minSdkVersion', 23)
+    targetSdkVersion safeExtGet('targetSdkVersion', 34)
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = '17'
+  }
+}
+
+repositories {
+  mavenCentral()
+  google()
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+}
