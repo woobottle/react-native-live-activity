@@ -108,9 +108,18 @@ The example project wires all of this up. The target was added programmatically 
 ### Android
 
 - Live update / promoted ongoing notification path; not a 1:1 reproduction of iOS Live Activity.
-- `startActivity`, `updateActivity`, and `endActivity` currently map to an ongoing status notification.
+- `startActivity`, `updateActivity`, and `endActivity` map to an ongoing status notification.
 - Android 13+ requires `POST_NOTIFICATIONS`; this library declares the permission, but the consuming app still needs to request it before starting an activity.
-- A foreground service may still be needed for long-running production use cases (TECH-PLAN §4).
+- **Foreground service (opt-in):** for long-running activities that should resist being reclaimed, pass `{ android: { foregroundService: true } }` to `startActivity`:
+
+  ```ts
+  await LiveActivity.startActivity(
+    { title: 'Delivery in progress', subtitle: '12 min away', progress: 0.4 },
+    { android: { foregroundService: true } },
+  )
+  ```
+
+  The library declares `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` (Android 14+, `dataSync` type) plus the service itself, so no extra app manifest wiring is required. `updateActivity` / `endActivity` are routed to the service automatically for ids started this way. v1 hosts one primary foreground activity at a time. The option is a no-op on iOS.
 
 ## Project layout
 

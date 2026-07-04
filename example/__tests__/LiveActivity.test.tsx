@@ -53,7 +53,16 @@ describe('LiveActivity JS surface', () => {
     await expect(LiveActivity.startActivity(content)).resolves.toEqual({
       activityId: 'abc',
     });
-    expect(native.startActivity).toHaveBeenCalledWith(content);
+    // Options default to an empty object when omitted.
+    expect(native.startActivity).toHaveBeenCalledWith(content, {});
+  });
+
+  it('startActivity forwards the foregroundService option', async () => {
+    native.startActivity.mockResolvedValue({activityId: 'abc'});
+    const content = {title: 'Delivery'};
+    const options = {android: {foregroundService: true}};
+    await LiveActivity.startActivity(content, options);
+    expect(native.startActivity).toHaveBeenCalledWith(content, options);
   });
 
   it('updateActivity forwards id and content', async () => {

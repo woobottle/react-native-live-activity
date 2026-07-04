@@ -40,7 +40,10 @@ class LiveActivityModule: NSObject {
 
   // MARK: - startActivity
 
+  // `options` (e.g. Android's foregroundService) is accepted for a uniform
+  // cross-platform bridge signature but has no effect on iOS.
   @objc func startActivity(_ content: NSDictionary,
+                           options: NSDictionary,
                            resolver resolve: @escaping RCTPromiseResolveBlock,
                            rejecter reject: @escaping RCTPromiseRejectBlock) {
     guard #available(iOS 16.1, *) else {

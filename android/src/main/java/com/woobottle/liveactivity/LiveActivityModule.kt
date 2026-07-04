@@ -1,12 +1,6 @@
 package com.woobottle.liveactivity
 
 import android.Manifest
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.facebook.react.bridge.Promise
@@ -16,11 +10,16 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReadableType
 import com.facebook.react.bridge.WritableNativeMap
+import java.util.Collections
 import java.util.UUID
 import kotlin.math.roundToInt
 
 class LiveActivityModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
+
+  // Activity ids currently backed by the foreground service, so update/end can
+  // route to the service rather than the plain notification manager.
+  private val foregroundActivityIds = Collections.synchronizedSet(mutableSetOf<String>())
 
   override fun getName(): String = NAME
 
@@ -38,11 +37,21 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun startActivity(content: ReadableMap, promise: Promise) {
+  fun startActivity(content: ReadableMap, options: ReadableMap?, promise: Promise) {
     val activityId = UUID.randomUUID().toString()
 
     try {
-      showNotification(activityId, content)
+      requireNotificationPermission()
+      val parsed = parseContent(content)
+
+      if (isForegroundRequested(options)) {
+        LiveActivityForegroundService.start(
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+        )
+        foregroundActivityIds.add(activityId)
+      } else {
+        showNotification(activityId, parsed)
+      }
 
       val result = WritableNativeMap()
       result.putString("activityId", activityId)
@@ -60,7 +69,15 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   fun updateActivity(activityId: String, content: ReadableMap, promise: Promise) {
     try {
       requireValidActivityId(activityId)
-      showNotification(activityId, content)
+      val parsed = parseContent(content)
+
+      if (foregroundActivityIds.contains(activityId)) {
+        LiveActivityForegroundService.start(
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+        )
+      } else {
+        showNotification(activityId, parsed)
+      }
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
       promise.reject("E_INVALID_ARGUMENT", error.message, error)
@@ -75,7 +92,14 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   fun endActivity(activityId: String, promise: Promise) {
     try {
       requireValidActivityId(activityId)
-      notificationManager.cancel(notificationTag(activityId), notificationId(activityId))
+      if (foregroundActivityIds.remove(activityId)) {
+        LiveActivityForegroundService.stop(context)
+      } else {
+        LiveActivityNotifications.notificationManager(context).cancel(
+          LiveActivityNotifications.tag(activityId),
+          LiveActivityNotifications.id(activityId)
+        )
+      }
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
       promise.reject("E_INVALID_ARGUMENT", error.message, error)
@@ -87,101 +111,56 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   private val context: ReactApplicationContext
     get() = reactApplicationContext
 
-  private val notificationManager: NotificationManager
-    get() = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-  private fun showNotification(activityId: String, content: ReadableMap) {
+  private fun showNotification(activityId: String, content: ParsedContent) {
     requireValidActivityId(activityId)
     requireNotificationPermission()
-    createNotificationChannel()
+    LiveActivityNotifications.ensureChannel(context)
 
-    val notification = buildNotification(content)
-    notificationManager.notify(notificationTag(activityId), notificationId(activityId), notification)
-  }
-
-  private fun buildNotification(content: ReadableMap): Notification {
-    val title = content.requiredString("title")
-    val subtitle = content.optionalString("subtitle")
-    val progress = content.optionalProgress("progress")
-    val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-      ?: Intent().setPackage(context.packageName)
-    val pendingIntent = PendingIntent.getActivity(
-      context,
-      0,
-      launchIntent,
-      PendingIntent.FLAG_UPDATE_CURRENT or immutablePendingIntentFlag()
+    val notification =
+      LiveActivityNotifications.build(context, content.title, content.subtitle, content.progress)
+    LiveActivityNotifications.notificationManager(context).notify(
+      LiveActivityNotifications.tag(activityId),
+      LiveActivityNotifications.id(activityId),
+      notification
     )
-    val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      Notification.Builder(context, CHANNEL_ID)
-    } else {
-      @Suppress("DEPRECATION")
-      Notification.Builder(context)
-    }
-
-    builder
-      .setSmallIcon(notificationIcon())
-      .setContentTitle(title)
-      .setContentIntent(pendingIntent)
-      .setOngoing(true)
-      .setOnlyAlertOnce(true)
-      .setShowWhen(false)
-      .setCategory(Notification.CATEGORY_STATUS)
-      .setVisibility(Notification.VISIBILITY_PUBLIC)
-
-    if (subtitle != null) {
-      builder
-        .setContentText(subtitle)
-        .setStyle(Notification.BigTextStyle().bigText(subtitle))
-    }
-
-    if (progress != null) {
-      builder.setProgress(MAX_PROGRESS, progress, false)
-    }
-
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      @Suppress("DEPRECATION")
-      builder.setPriority(Notification.PRIORITY_DEFAULT)
-    }
-
-    return builder.build()
   }
 
-  private fun createNotificationChannel() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      return
-    }
+  private data class ParsedContent(
+    val title: String,
+    val subtitle: String?,
+    val progress: Int?
+  )
 
-    val existingChannel = notificationManager.getNotificationChannel(CHANNEL_ID)
-    if (existingChannel != null) {
-      return
-    }
+  private fun parseContent(content: ReadableMap): ParsedContent = ParsedContent(
+    title = content.requiredString("title"),
+    subtitle = content.optionalString("subtitle"),
+    progress = content.optionalProgress("progress")
+  )
 
-    val channel = NotificationChannel(
-      CHANNEL_ID,
-      CHANNEL_NAME,
-      NotificationManager.IMPORTANCE_DEFAULT
-    ).apply {
-      setShowBadge(false)
-      description = CHANNEL_DESCRIPTION
+  private fun isForegroundRequested(options: ReadableMap?): Boolean {
+    if (options == null || !options.hasKey("android") || options.isNull("android")) {
+      return false
     }
-
-    notificationManager.createNotificationChannel(channel)
+    if (options.getType("android") != ReadableType.Map) {
+      return false
+    }
+    val android = options.getMap("android") ?: return false
+    if (!android.hasKey("foregroundService") ||
+      android.isNull("foregroundService") ||
+      android.getType("foregroundService") != ReadableType.Boolean
+    ) {
+      return false
+    }
+    return android.getBoolean("foregroundService")
   }
-
-  private fun notificationIcon(): Int {
-    val appIcon = context.applicationInfo.icon
-    return if (appIcon != 0) appIcon else android.R.drawable.stat_notify_more
-  }
-
-  private fun immutablePendingIntentFlag(): Int =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
 
   private fun hasNotificationPermission(): Boolean {
     val hasPostNotificationPermission =
       Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     val notificationsEnabled =
-      Build.VERSION.SDK_INT < Build.VERSION_CODES.N || notificationManager.areNotificationsEnabled()
+      Build.VERSION.SDK_INT < Build.VERSION_CODES.N ||
+        LiveActivityNotifications.notificationManager(context).areNotificationsEnabled()
 
     return hasPostNotificationPermission && notificationsEnabled
   }
@@ -195,10 +174,6 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   private fun requireValidActivityId(activityId: String) {
     require(activityId.isNotBlank()) { "activityId must not be blank." }
   }
-
-  private fun notificationTag(activityId: String): String = "$NOTIFICATION_TAG_PREFIX$activityId"
-
-  private fun notificationId(activityId: String): Int = activityId.hashCode()
 
   private fun ReadableMap.requiredString(key: String): String {
     require(hasKey(key) && !isNull(key) && getType(key) == ReadableType.String) {
@@ -227,15 +202,10 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     require(getType(key) == ReadableType.Number) { "$key must be a number." }
     val value = getDouble(key)
     require(value in 0.0..1.0) { "$key must be between 0 and 1." }
-    return (value * MAX_PROGRESS).roundToInt()
+    return (value * LiveActivityNotifications.MAX_PROGRESS).roundToInt()
   }
 
   companion object {
     const val NAME = "LiveActivity"
-    private const val CHANNEL_ID = "live_activity"
-    private const val CHANNEL_NAME = "Live Activity"
-    private const val CHANNEL_DESCRIPTION = "Ongoing live activity updates"
-    private const val MAX_PROGRESS = 100
-    private const val NOTIFICATION_TAG_PREFIX = "live_activity:"
   }
 }
