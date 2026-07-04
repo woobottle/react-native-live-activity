@@ -2,7 +2,7 @@
 
 > React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.
 
-**Status:** early scaffold. The JS API surface and native module bridges are in place; native start/update/end implementations are intentionally stubbed and return `E_NOT_IMPLEMENTED`. See [`TECH-PLAN.md`](./TECH-PLAN.md) for the phased build path.
+**Status:** native lifecycle + iOS Widget Extension in place. The JS API surface, iOS ActivityKit lifecycle calls, the iOS Live Activity UI (Lock Screen + Dynamic Island) in the example app, and Android ongoing notification lifecycle calls are all implemented. Remaining work is an end-to-end build/device verification pass (blocked locally by an out-of-date Xcode toolchain). See [`TECH-PLAN.md`](./TECH-PLAN.md) for the phased build path.
 
 ---
 
@@ -75,14 +75,37 @@ The content schema is intentionally narrow for v1 (see PRD §3 non-goals). Riche
 ### iOS
 
 - ActivityKit; minimum iOS **16.1** for Live Activity itself.
-- The module loads on iOS 15.1+ so consuming apps can keep a lower deployment target; `isSupported()` returns `false` on < 16.1.
-- A Widget Extension target is required in the consuming app to render Live Activity UI. The extension setup story is part of upcoming phases — see TECH-PLAN §3.
+- The module loads on iOS 15.1+ so consuming apps can keep a lower deployment target; `isSupported()` returns `false` on < 16.1 or when Live Activities are disabled.
+- `startActivity`, `updateActivity`, and `endActivity` use ActivityKit with the built-in `LiveActivityAttributes` / `ContentState` model.
+- A Widget Extension target is required in the consuming app to render Live Activity UI. See **iOS Widget Extension setup** below. The `example/` app ships a working `LiveActivityWidget` extension you can copy from.
+
+#### iOS Widget Extension setup
+
+A Live Activity is *requested* from the app process (this library) but *rendered* by a
+Widget Extension. ActivityKit matches the two by the `LiveActivityAttributes` type and
+the shape of its `ContentState`, so the widget must use the **exact same** attributes
+definition this library ships in [`ios/LiveActivityAttributes.swift`](./ios/LiveActivityAttributes.swift).
+
+1. In Xcode: **File ▸ New ▸ Target… ▸ Widget Extension**. Name it e.g. `LiveActivityWidget`,
+   check **Include Live Activity**, set the deployment target to **iOS 16.1+**.
+2. Add this library's `LiveActivityAttributes.swift` to the widget target — either add the
+   file to the widget's **Target Membership**, or copy it verbatim. Do **not** define a
+   diverging copy, or activities will silently fail to render.
+3. Implement `ActivityConfiguration(for: LiveActivityAttributes.self) { … } dynamicIsland: { … }`.
+   The example's [`LiveActivityWidgetLiveActivity.swift`](./example/ios/LiveActivityWidget/LiveActivityWidgetLiveActivity.swift)
+   is a complete reference (Lock Screen + Dynamic Island).
+4. Add `NSSupportsLiveActivities` = `YES` to the **app** target's `Info.plist`.
+
+The example project wires all of this up. The target was added programmatically via
+[`example/ios/scripts/add_widget_target.rb`](./example/ios/scripts/add_widget_target.rb)
+(runnable with the `xcodeproj` gem) if you prefer scripting over the Xcode UI.
 
 ### Android
 
 - Live update / promoted ongoing notification path; not a 1:1 reproduction of iOS Live Activity.
-- A foreground service may be required depending on use case (TECH-PLAN §4).
-- Notification channel and POST_NOTIFICATIONS permission handling will be documented as the implementation lands.
+- `startActivity`, `updateActivity`, and `endActivity` currently map to an ongoing status notification.
+- Android 13+ requires `POST_NOTIFICATIONS`; this library declares the permission, but the consuming app still needs to request it before starting an activity.
+- A foreground service may still be needed for long-running production use cases (TECH-PLAN §4).
 
 ## Project layout
 
@@ -90,6 +113,7 @@ The content schema is intentionally narrow for v1 (see PRD §3 non-goals). Riche
 src/                    TypeScript public API and native bridge
 ios/                    Swift module + ObjC RCT_EXTERN bridge
 android/                Kotlin module + ReactPackage
+example/                Bare React Native app for manual lifecycle testing
 PRD.md                  Product scope, MVP, success criteria
 TECH-PLAN.md            Architecture, API shape, phased build plan
 ```
@@ -102,11 +126,11 @@ Phases tracked in [`TECH-PLAN.md`](./TECH-PLAN.md):
 2. ✅ JS API contract and type surface
 3. ✅ iOS native module stub
 4. ✅ Android native module stub
-5. ⏳ Example app baseline
-6. ⏳ iOS `startActivity` working path
-7. ⏳ Android `startActivity` working path
-8. ⏳ iOS `update` / `end` working path
-9. ⏳ Android `update` / `end` working path
+5. ✅ Example app baseline
+6. ✅ iOS `startActivity` working path
+7. ✅ Android `startActivity` working path
+8. ✅ iOS `update` / `end` working path
+9. ✅ Android `update` / `end` working path
 10. ⏳ Docs hardening
 
 ## License

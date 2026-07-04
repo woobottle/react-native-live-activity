@@ -16,7 +16,8 @@ Pod::Spec.new do |s|
   s.source       = { :git => "https://github.com/woobottle/react-native-live-activity.git", :tag => "#{s.version}" }
 
   s.source_files = "ios/**/*.{h,m,mm,swift}"
-  s.swift_version = "5.0"
+  s.swift_version = "5.5"
+  s.weak_frameworks = "ActivityKit"
 
   s.dependency "React-Core"
 end
