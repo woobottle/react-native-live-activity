@@ -30,6 +30,14 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
+  fun getPlatformCapabilities(promise: Promise) {
+    val capabilities = WritableNativeMap()
+    capabilities.putBoolean("iosLiveActivity", false)
+    capabilities.putBoolean("androidLiveUpdate", hasNotificationPermission())
+    promise.resolve(capabilities)
+  }
+
+  @ReactMethod
   fun startActivity(content: ReadableMap, promise: Promise) {
     val activityId = UUID.randomUUID().toString()
 

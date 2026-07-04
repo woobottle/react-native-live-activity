@@ -1,5 +1,9 @@
 import NativeLiveActivity from './NativeLiveActivity'
-import type { LiveActivityContent, StartLiveActivityResult } from './types'
+import type {
+  LiveActivityContent,
+  PlatformCapabilities,
+  StartLiveActivityResult,
+} from './types'
 
 /**
  * Public JS surface for the library. Mirrors PRD §6 candidate API exactly.
@@ -9,6 +13,10 @@ import type { LiveActivityContent, StartLiveActivityResult } from './types'
 export const LiveActivity = {
   isSupported(): Promise<boolean> {
     return NativeLiveActivity.isSupported()
+  },
+
+  getPlatformCapabilities(): Promise<PlatformCapabilities> {
+    return NativeLiveActivity.getPlatformCapabilities()
   },
 
   startActivity(content: LiveActivityContent): Promise<StartLiveActivityResult> {

@@ -24,6 +24,20 @@ class LiveActivityModule: NSObject {
     }
   }
 
+  // MARK: - getPlatformCapabilities
+
+  @objc func getPlatformCapabilities(_ resolve: @escaping RCTPromiseResolveBlock,
+                                     rejecter reject: @escaping RCTPromiseRejectBlock) {
+    var iosLiveActivity = false
+    if #available(iOS 16.1, *) {
+      iosLiveActivity = ActivityAuthorizationInfo().areActivitiesEnabled
+    }
+    resolve([
+      "iosLiveActivity": iosLiveActivity,
+      "androidLiveUpdate": false,
+    ])
+  }
+
   // MARK: - startActivity
 
   @objc func startActivity(_ content: NSDictionary,

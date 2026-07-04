@@ -47,6 +47,11 @@ await LiveActivity.updateActivity(activityId, {
 })
 
 await LiveActivity.endActivity(activityId)
+
+// Coarse per-platform capability probe:
+await LiveActivity.getPlatformCapabilities()
+// iOS     => { iosLiveActivity: <areActivitiesEnabled>, androidLiveUpdate: false }
+// Android => { iosLiveActivity: false, androidLiveUpdate: <notifications enabled> }
 ```
 
 ### Types

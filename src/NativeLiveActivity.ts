@@ -1,9 +1,14 @@
 import { NativeModules, Platform } from 'react-native'
 
-import type { LiveActivityContent, StartLiveActivityResult } from './types'
+import type {
+  LiveActivityContent,
+  PlatformCapabilities,
+  StartLiveActivityResult,
+} from './types'
 
 export type NativeLiveActivityModule = {
   isSupported(): Promise<boolean>
+  getPlatformCapabilities(): Promise<PlatformCapabilities>
   startActivity(content: LiveActivityContent): Promise<StartLiveActivityResult>
   updateActivity(activityId: string, content: LiveActivityContent): Promise<void>
   endActivity(activityId: string): Promise<void>
