@@ -19,6 +19,7 @@ import {NativeModules} from 'react-native';
 const native = {
   isSupported: jest.fn(),
   getPlatformCapabilities: jest.fn(),
+  getActiveActivities: jest.fn(),
   startActivity: jest.fn(),
   updateActivity: jest.fn(),
   endActivity: jest.fn(),
@@ -63,6 +64,37 @@ describe('LiveActivity JS surface', () => {
     const options = {android: {foregroundService: true}};
     await LiveActivity.startActivity(content, options);
     expect(native.startActivity).toHaveBeenCalledWith(content, options);
+  });
+
+  it('startActivity forwards timer content and referenceId', async () => {
+    native.startActivity.mockResolvedValue({activityId: 'timer-1'});
+    const content = {
+      title: '독서',
+      timer: {
+        startAt: 1_721_700_000_000,
+        endAt: 1_721_700_600_000,
+        state: 'running',
+      },
+    };
+    const options = {referenceId: 'mission-42'};
+
+    await LiveActivity.startActivity(content, options);
+
+    expect(native.startActivity).toHaveBeenCalledWith(content, options);
+  });
+
+  it('getActiveActivities returns native activity snapshots', async () => {
+    const activities = [
+      {
+        activityId: 'timer-1',
+        referenceId: 'mission-42',
+        content: {title: '독서'},
+      },
+    ];
+    native.getActiveActivities.mockResolvedValue(activities);
+
+    await expect(LiveActivity.getActiveActivities()).resolves.toEqual(activities);
+    expect(native.getActiveActivities).toHaveBeenCalledTimes(1);
   });
 
   it('updateActivity forwards id and content', async () => {

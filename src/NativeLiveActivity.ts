@@ -1,6 +1,7 @@
 import { NativeModules, Platform } from 'react-native'
 
 import type {
+  ActiveLiveActivity,
   LiveActivityContent,
   PlatformCapabilities,
   StartActivityOptions,
@@ -10,6 +11,7 @@ import type {
 export type NativeLiveActivityModule = {
   isSupported(): Promise<boolean>
   getPlatformCapabilities(): Promise<PlatformCapabilities>
+  getActiveActivities(): Promise<ActiveLiveActivity[]>
   startActivity(
     content: LiveActivityContent,
     options: StartActivityOptions,
