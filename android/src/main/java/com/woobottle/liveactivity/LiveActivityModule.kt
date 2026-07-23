@@ -3,15 +3,18 @@ package com.woobottle.liveactivity
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.ReadableType
+import com.facebook.react.bridge.WritableNativeArray
 import com.facebook.react.bridge.WritableNativeMap
 import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 class LiveActivityModule(reactContext: ReactApplicationContext) :
@@ -20,6 +23,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   // Activity ids currently backed by the foreground service, so update/end can
   // route to the service rather than the plain notification manager.
   private val foregroundActivityIds = Collections.synchronizedSet(mutableSetOf<String>())
+  private val activeSnapshots = ConcurrentHashMap<String, ActivitySnapshot>()
 
   override fun getName(): String = NAME
 
@@ -34,6 +38,19 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     capabilities.putBoolean("iosLiveActivity", false)
     capabilities.putBoolean("androidLiveUpdate", hasNotificationPermission())
     promise.resolve(capabilities)
+  }
+
+  @ReactMethod
+  fun getActiveActivities(promise: Promise) {
+    val activities = WritableNativeArray()
+    activeSnapshots.values.forEach { snapshot ->
+      val activity = WritableNativeMap()
+      activity.putString("activityId", snapshot.activityId)
+      snapshot.referenceId?.let { activity.putString("referenceId", it) }
+      activity.putMap("content", Arguments.makeNativeMap(snapshot.content))
+      activities.pushMap(activity)
+    }
+    promise.resolve(activities)
   }
 
   @ReactMethod
@@ -53,6 +70,11 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
         showNotification(activityId, parsed)
       }
 
+      activeSnapshots[activityId] = ActivitySnapshot(
+        activityId = activityId,
+        referenceId = options.optionalReferenceId(),
+        content = content.toHashMap()
+      )
       val result = WritableNativeMap()
       result.putString("activityId", activityId)
       promise.resolve(result)
@@ -78,6 +100,9 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
       } else {
         showNotification(activityId, parsed)
       }
+      activeSnapshots.computeIfPresent(activityId) { _, snapshot ->
+        snapshot.copy(content = content.toHashMap())
+      }
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
       promise.reject("E_INVALID_ARGUMENT", error.message, error)
@@ -100,6 +125,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
           LiveActivityNotifications.id(activityId)
         )
       }
+      activeSnapshots.remove(activityId)
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
       promise.reject("E_INVALID_ARGUMENT", error.message, error)
@@ -131,6 +157,12 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     val progress: Int?
   )
 
+  private data class ActivitySnapshot(
+    val activityId: String,
+    val referenceId: String?,
+    val content: HashMap<String, Any>
+  )
+
   private fun parseContent(content: ReadableMap): ParsedContent = ParsedContent(
     title = content.requiredString("title"),
     subtitle = content.optionalString("subtitle"),
@@ -152,6 +184,17 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
       return false
     }
     return android.getBoolean("foregroundService")
+  }
+
+  private fun ReadableMap?.optionalReferenceId(): String? {
+    if (this == null ||
+      !hasKey("referenceId") ||
+      isNull("referenceId") ||
+      getType("referenceId") != ReadableType.String
+    ) {
+      return null
+    }
+    return getString("referenceId")
   }
 
   private fun hasNotificationPermission(): Boolean {
