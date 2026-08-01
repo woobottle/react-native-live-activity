@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 import {
   Alert,
   PermissionsAndroid,
@@ -10,31 +10,37 @@ import {
   Text,
   View,
 } from 'react-native';
-import {LiveActivity} from 'react-native-live-activity';
+import {
+  LiveActivity,
+  type ActiveLiveActivity,
+  type LiveActivityContent,
+  type LiveActivityTimer,
+} from 'react-native-live-activity';
 
-const progressSteps = [0.2, 0.45, 0.7, 1];
+const EXAMPLE_REFERENCE_ID = 'example-timer';
+const TEN_MINUTES_MS = 10 * 60 * 1000;
 
 function App(): React.JSX.Element {
   const [activityId, setActivityId] = useState<string | null>(null);
-  const [progressIndex, setProgressIndex] = useState(0);
+  const [timer, setTimer] = useState<LiveActivityTimer | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [lastResult, setLastResult] = useState('Ready');
 
-  const progress = progressSteps[progressIndex];
   const canUpdate = activityId != null && !isBusy;
   const canEnd = activityId != null && !isBusy;
 
-  const payload = useMemo(
-    () => ({
-      title: 'Delivery in progress',
+  function makePayload(nextTimer: LiveActivityTimer): LiveActivityContent {
+    return {
+      title: '10분 미션',
       subtitle:
-        progress >= 1
-          ? 'Arrived'
-          : `${Math.round(progress * 100)}% complete`,
-      progress,
-    }),
-    [progress],
-  );
+        nextTimer.state === 'completed'
+          ? '10분 달성!'
+          : nextTimer.state === 'paused'
+            ? '잠시 멈춤'
+            : '집중하는 중',
+      timer: nextTimer,
+    };
+  }
 
   async function ensureAndroidNotificationPermission(): Promise<boolean> {
     if (Platform.OS !== 'android' || Platform.Version < 33) {
@@ -63,8 +69,17 @@ function App(): React.JSX.Element {
         return;
       }
 
-      const result = await LiveActivity.startActivity(payload);
+      const now = Date.now();
+      const nextTimer: LiveActivityTimer = {
+        startAt: now,
+        endAt: now + TEN_MINUTES_MS,
+        state: 'running',
+      };
+      const result = await LiveActivity.startActivity(makePayload(nextTimer), {
+        referenceId: EXAMPLE_REFERENCE_ID,
+      });
       setActivityId(result.activityId);
+      setTimer(nextTimer);
       setLastResult(`Started ${result.activityId}`);
     } catch (error) {
       showError(error);
@@ -73,32 +88,85 @@ function App(): React.JSX.Element {
     }
   }
 
-  async function handleUpdate() {
-    if (!activityId) {
+  async function handlePauseOrResume() {
+    if (!activityId || !timer || timer.state === 'completed') {
       return;
     }
 
     setIsBusy(true);
     try {
-      const nextProgressIndex = (progressIndex + 1) % progressSteps.length;
-      const nextProgress = progressSteps[nextProgressIndex];
+      const now = Date.now();
+      const nextTimer: LiveActivityTimer =
+        timer.state === 'paused'
+          ? {
+              startAt: timer.startAt,
+              endAt: timer.endAt + Math.max(0, now - (timer.pauseAt ?? now)),
+              state: 'running',
+            }
+          : {
+              ...timer,
+              pauseAt: Math.min(now, timer.endAt),
+              state: 'paused',
+            };
 
-      await LiveActivity.updateActivity(activityId, {
-        title: 'Delivery in progress',
-        subtitle:
-          nextProgress >= 1
-            ? 'Arrived'
-            : `${Math.round(nextProgress * 100)}% complete`,
-        progress: nextProgress,
-      });
-
-      setProgressIndex(nextProgressIndex);
-      setLastResult(`Updated ${activityId}`);
+      await LiveActivity.updateActivity(activityId, makePayload(nextTimer));
+      setTimer(nextTimer);
+      setLastResult(
+        `${nextTimer.state === 'paused' ? 'Paused' : 'Resumed'} ${activityId}`,
+      );
     } catch (error) {
       showError(error);
     } finally {
       setIsBusy(false);
     }
+  }
+
+  async function handleComplete() {
+    if (!activityId || !timer) {
+      return;
+    }
+
+    setIsBusy(true);
+    try {
+      const nextTimer: LiveActivityTimer = {
+        ...timer,
+        pauseAt: undefined,
+        state: 'completed',
+      };
+      await LiveActivity.updateActivity(activityId, makePayload(nextTimer));
+      setTimer(nextTimer);
+      setLastResult(`Completed ${activityId}`);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleQuery() {
+    setIsBusy(true);
+    try {
+      const activities = await LiveActivity.getActiveActivities();
+      const match = activities.find(
+        candidate => candidate.referenceId === EXAMPLE_REFERENCE_ID,
+      );
+      restoreActivity(match);
+      setLastResult(
+        match ? `Recovered ${match.activityId}` : 'No example timer found',
+      );
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  function restoreActivity(activity: ActiveLiveActivity | undefined) {
+    if (!activity) {
+      return;
+    }
+    setActivityId(activity.activityId);
+    setTimer(activity.content.timer ?? null);
   }
 
   async function handleEnd() {
@@ -111,7 +179,7 @@ function App(): React.JSX.Element {
       await LiveActivity.endActivity(activityId);
       setLastResult(`Ended ${activityId}`);
       setActivityId(null);
-      setProgressIndex(0);
+      setTimer(null);
     } catch (error) {
       showError(error);
     } finally {
@@ -139,25 +207,42 @@ function App(): React.JSX.Element {
         <View style={styles.statusPanel}>
           <Text style={styles.label}>Activity ID</Text>
           <Text style={styles.value}>{activityId ?? 'None'}</Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, {width: `${progress * 100}%`}]} />
-          </View>
+          <Text style={styles.timerState}>
+            {timer?.state ?? 'No active timer'}
+          </Text>
           <Text style={styles.result}>{lastResult}</Text>
         </View>
 
         <View style={styles.actions}>
           <ActionButton
+            testID="start-activity"
             label={activityId ? 'Start another' : 'Start'}
             disabled={isBusy}
             onPress={handleStart}
           />
           <ActionButton
-            label="Update"
-            disabled={!canUpdate}
-            onPress={handleUpdate}
+            testID="pause-resume-activity"
+            label={timer?.state === 'paused' ? 'Resume' : 'Pause'}
+            disabled={!canUpdate || timer?.state === 'completed'}
+            onPress={handlePauseOrResume}
             secondary
           />
           <ActionButton
+            testID="complete-activity"
+            label="Complete"
+            disabled={!canUpdate || timer?.state === 'completed'}
+            onPress={handleComplete}
+            secondary
+          />
+          <ActionButton
+            testID="query-activities"
+            label="Query active"
+            disabled={isBusy}
+            onPress={handleQuery}
+            secondary
+          />
+          <ActionButton
+            testID="end-activity"
             label="End"
             disabled={!canEnd}
             onPress={handleEnd}
@@ -170,6 +255,7 @@ function App(): React.JSX.Element {
 }
 
 type ActionButtonProps = {
+  testID?: string;
   label: string;
   disabled?: boolean;
   secondary?: boolean;
@@ -178,6 +264,7 @@ type ActionButtonProps = {
 };
 
 function ActionButton({
+  testID,
   label,
   disabled = false,
   secondary = false,
@@ -186,6 +273,7 @@ function ActionButton({
 }: ActionButtonProps): React.JSX.Element {
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -251,15 +339,11 @@ const styles = StyleSheet.create({
     fontFamily: Platform.select({ios: 'Menlo', android: 'monospace'}),
     fontSize: 13,
   },
-  progressTrack: {
-    backgroundColor: '#e7eaf0',
-    borderRadius: 999,
-    height: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    backgroundColor: '#2476d4',
-    height: '100%',
+  timerState: {
+    color: '#2476d4',
+    fontSize: 18,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   result: {
     color: '#3e4450',

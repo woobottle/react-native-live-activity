@@ -11,7 +11,7 @@ struct LiveActivityWidgetLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: LiveActivityAttributes.self) { context in
       // Lock Screen / banner presentation.
-      LiveActivityLockScreenView(state: context.state)
+      LiveActivityLockScreenView(context: context)
         .padding(16)
         .activityBackgroundTint(Color.black.opacity(0.35))
         .activitySystemActionForegroundColor(Color.white)
@@ -23,12 +23,8 @@ struct LiveActivityWidgetLiveActivity: Widget {
             .padding(.leading, 4)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          if let progress = context.state.progress {
-            Text("\(Int((progress * 100).rounded()))%")
-              .font(.caption).bold()
-              .monospacedDigit()
-              .padding(.trailing, 4)
-          }
+          LiveActivityStatusView(context: context, compact: true)
+            .padding(.trailing, 4)
         }
         DynamicIslandExpandedRegion(.center) {
           VStack(alignment: .leading, spacing: 2) {
@@ -44,20 +40,13 @@ struct LiveActivityWidgetLiveActivity: Widget {
           }
         }
         DynamicIslandExpandedRegion(.bottom) {
-          if let progress = context.state.progress {
-            ProgressView(value: progress)
-              .tint(.white)
-          }
+          LiveActivityStatusView(context: context)
         }
       } compactLeading: {
         Image(systemName: "bell.badge.fill")
           .foregroundStyle(.tint)
       } compactTrailing: {
-        if let progress = context.state.progress {
-          Text("\(Int((progress * 100).rounded()))%")
-            .font(.caption2)
-            .monospacedDigit()
-        }
+        LiveActivityStatusView(context: context, compact: true)
       } minimal: {
         Image(systemName: "bell.fill")
           .foregroundStyle(.tint)
@@ -68,35 +57,74 @@ struct LiveActivityWidgetLiveActivity: Widget {
 
 @available(iOS 16.1, *)
 private struct LiveActivityLockScreenView: View {
-  let state: LiveActivityAttributes.ContentState
+  let context: ActivityViewContext<LiveActivityAttributes>
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack {
         Image(systemName: "bell.badge.fill")
           .foregroundStyle(.tint)
-        Text(state.title)
+        Text(context.state.title)
           .font(.headline)
           .lineLimit(1)
         Spacer()
-        if let progress = state.progress {
-          Text("\(Int((progress * 100).rounded()))%")
-            .font(.subheadline).bold()
-            .monospacedDigit()
-        }
+        LiveActivityStatusView(context: context, compact: true)
       }
 
-      if let subtitle = state.subtitle {
+      if let subtitle = context.state.subtitle {
         Text(subtitle)
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .lineLimit(2)
       }
 
-      if let progress = state.progress {
+      if let progress = context.state.progress,
+         context.state.timerStartAt == nil {
         ProgressView(value: progress)
           .tint(.white)
       }
+
+      if context.state.timerStartAt != nil {
+        LiveActivityStatusView(context: context)
+          .font(.title2.bold())
+      }
     }
+  }
+}
+
+@available(iOS 16.1, *)
+private struct LiveActivityStatusView: View {
+  let context: ActivityViewContext<LiveActivityAttributes>
+  var compact = false
+
+  private var isCompleted: Bool {
+    if #available(iOS 16.2, *) {
+      return context.isStale || context.state.timerState == "completed"
+    }
+    return context.state.timerState == "completed"
+  }
+
+  var body: some View {
+    Group {
+      if isCompleted {
+        Text(compact ? "달성!" : "10분 달성!")
+      } else if
+        let startAt = context.state.timerStartAt,
+        let endAt = context.state.timerEndAt
+      {
+        Text(
+          timerInterval: startAt...endAt,
+          pauseTime: context.state.timerPauseAt,
+          countsDown: true,
+          showsHours: false
+        )
+        .monospacedDigit()
+        .accessibilityLabel("미션 남은 시간")
+      } else if let progress = context.state.progress {
+        Text("\(Int((progress * 100).rounded()))%")
+          .monospacedDigit()
+      }
+    }
+    .font(compact ? .caption.bold() : .body.bold())
   }
 }

@@ -166,7 +166,6 @@
 				B28AFBABDB32D40C1465D6C6 /* Info.plist */,
 			);
 			name = LiveActivityWidget;
-			path = LiveActivityWidget;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {

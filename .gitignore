@@ -10,7 +10,7 @@ lib/
 dist/
 build/
 *.tgz
-.worktrees/
+/.worktrees/
 
 # iOS
 ios/Pods/
