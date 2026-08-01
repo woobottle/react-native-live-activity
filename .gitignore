@@ -19,6 +19,10 @@ ios/DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 
+# SwiftPM
+tests/ios/.build/
+.swiftpm/
+
 # Android
 android/build/
 android/.gradle/

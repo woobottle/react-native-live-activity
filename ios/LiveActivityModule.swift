@@ -195,116 +195,31 @@ class LiveActivityModule: NSObject {
     from content: NSDictionary,
     rejecter reject: RCTPromiseRejectBlock
   ) -> ParsedActivityContent? {
-    guard let title = content["title"] as? String, !title.isEmpty else {
-      reject("E_INVALID_CONTENT", "content.title must be a non-empty string", nil)
+    let parsed: LiveActivityParsedContent
+    do {
+      parsed = try LiveActivityContentParser.parse(content as? [AnyHashable: Any] ?? [:])
+    } catch let error as LiveActivityContentError {
+      reject("E_INVALID_CONTENT", error.message, nil)
       return nil
-    }
-
-    let subtitle = content["subtitle"] as? String
-    let progress = content["progress"] as? NSNumber
-    let normalizedProgress = progress?.doubleValue
-
-    if let normalizedProgress = normalizedProgress {
-      if normalizedProgress < 0 || normalizedProgress > 1 {
-        reject("E_INVALID_CONTENT", "content.progress must be between 0 and 1", nil)
-        return nil
-      }
-    }
-
-    var parsedTimer: ParsedTimer?
-    if let timerValue = content["timer"] {
-      guard let timer = makeTimer(from: timerValue, rejecter: reject) else {
-        return nil
-      }
-      parsedTimer = timer
+    } catch {
+      reject("E_INVALID_CONTENT", "content is invalid", error)
+      return nil
     }
 
     let state = LiveActivityAttributes.ContentState(
-      title: title,
-      subtitle: subtitle,
-      progress: normalizedProgress,
-      timerStartAt: parsedTimer?.startAt,
-      timerEndAt: parsedTimer?.endAt,
-      timerPauseAt: parsedTimer?.pauseAt,
-      timerState: parsedTimer?.state
+      title: parsed.title,
+      subtitle: parsed.subtitle,
+      progress: parsed.progress,
+      timerStartAt: parsed.timer?.startAt,
+      timerEndAt: parsed.timer?.endAt,
+      timerPauseAt: parsed.timer?.pauseAt,
+      timerState: parsed.timer?.state
     )
 
-    let staleDate = parsedTimer?.state == "running" ? parsedTimer?.endAt : nil
+    // 실행 중인 타이머는 종료 시점 이후 stale로 표시해 위젯이 낡은 값을 계속
+    // 보여주지 않게 한다.
+    let staleDate = parsed.timer?.state == "running" ? parsed.timer?.endAt : nil
     return ParsedActivityContent(state: state, staleDate: staleDate)
-  }
-
-  private struct ParsedTimer {
-    let startAt: Date
-    let endAt: Date
-    let pauseAt: Date?
-    let state: String
-  }
-
-  private static func makeTimer(
-    from value: Any,
-    rejecter reject: RCTPromiseRejectBlock
-  ) -> ParsedTimer? {
-    guard let timer = value as? NSDictionary else {
-      reject("E_INVALID_CONTENT", "content.timer must be an object", nil)
-      return nil
-    }
-    guard
-      let startMilliseconds = timer["startAt"] as? NSNumber,
-      let endMilliseconds = timer["endAt"] as? NSNumber,
-      startMilliseconds.doubleValue.isFinite,
-      endMilliseconds.doubleValue.isFinite
-    else {
-      reject("E_INVALID_CONTENT", "content.timer startAt and endAt must be finite numbers", nil)
-      return nil
-    }
-
-    let startAt = date(fromMilliseconds: startMilliseconds)
-    let endAt = date(fromMilliseconds: endMilliseconds)
-    guard endAt >= startAt else {
-      reject("E_INVALID_CONTENT", "content.timer endAt must be after startAt", nil)
-      return nil
-    }
-
-    guard
-      let state = timer["state"] as? String,
-      ["running", "paused", "completed"].contains(state)
-    else {
-      reject("E_INVALID_CONTENT", "content.timer state is invalid", nil)
-      return nil
-    }
-
-    var pauseAt: Date?
-    if let pauseMilliseconds = timer["pauseAt"] as? NSNumber {
-      guard pauseMilliseconds.doubleValue.isFinite else {
-        reject("E_INVALID_CONTENT", "content.timer pauseAt must be a finite number", nil)
-        return nil
-      }
-      pauseAt = date(fromMilliseconds: pauseMilliseconds)
-    }
-
-    if state == "paused" && pauseAt == nil {
-      reject("E_INVALID_CONTENT", "content.timer pauseAt is required when paused", nil)
-      return nil
-    }
-    if let pauseAt, !(startAt...endAt).contains(pauseAt) {
-      reject("E_INVALID_CONTENT", "content.timer pauseAt must be within the timer interval", nil)
-      return nil
-    }
-
-    return ParsedTimer(
-      startAt: startAt,
-      endAt: endAt,
-      pauseAt: pauseAt,
-      state: state
-    )
-  }
-
-  private static func date(fromMilliseconds value: NSNumber) -> Date {
-    Date(timeIntervalSince1970: value.doubleValue / 1_000)
-  }
-
-  private static func milliseconds(from date: Date) -> Double {
-    date.timeIntervalSince1970 * 1_000
   }
 
   @available(iOS 16.1, *)
@@ -326,12 +241,12 @@ class LiveActivityModule: NSObject {
       let timerState = state.timerState
     {
       var timer: [String: Any] = [
-        "startAt": milliseconds(from: startAt),
-        "endAt": milliseconds(from: endAt),
+        "startAt": LiveActivityContentParser.milliseconds(from: startAt),
+        "endAt": LiveActivityContentParser.milliseconds(from: endAt),
         "state": timerState,
       ]
       if let pauseAt = state.timerPauseAt {
-        timer["pauseAt"] = milliseconds(from: pauseAt)
+        timer["pauseAt"] = LiveActivityContentParser.milliseconds(from: pauseAt)
       }
       content["timer"] = timer
     }
