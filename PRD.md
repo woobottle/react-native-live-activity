@@ -203,10 +203,11 @@ Optional later expansion:
 
 ## 11. v0.1.0 current status (2026-08-01)
 
-- ✅ Installable into a bare RN app — CI's android/ios jobs verify this on every push
-- ✅ Example app runs the start/update/end lifecycle on both platforms (verified via CI build/unit-test jobs, not on physical hardware — see below)
-- ✅ Native countdown timer works end-to-end on **iOS only**; Android's native module does not read `content.timer` at all, so it has no rendering effect there (see README **Platform behavior differences**)
+- ✅ Installable into a bare RN app — CI's android/ios jobs verify this on every push (iOS: `pod install` resolves the podspec against the example app's Podfile; Android: Gradle `assembleDebug` succeeds against the example app's build)
+- ✅ CI compiles the library on both platforms and runs unit tests — Swift parser tests (`swift test --package-path tests/ios`), Kotlin parser tests (`testDebugUnitTest`), and JS tests that assert the JS API forwards calls correctly to a mocked native module. This proves the code compiles and the parsers/call-forwarding behave correctly; it does **not** exercise a real ActivityKit or NotificationManager call.
+- ⬜ Example app actually running the start/update/end lifecycle on a device or simulator (a real ActivityKit request/update/end on iOS, a real NotificationManager notify/cancel on Android) — **not yet verified.** Nothing in CI or this branch's history invokes the real native APIs end-to-end; the JS tests above run entirely against a mocked native module. This success metric is currently unmet.
+- ✅ Native countdown timer is implemented for iOS — parsed, validated, and wired to render live via the widget's `Text(timerInterval:)` (confirmed by reading the code, not by running it — see the bullet above). Android's native module does not read `content.timer` at all, so it has zero rendering effect there (see README **Platform behavior differences**).
 - ✅ Native setup docs — README's iOS Widget Extension setup, Android permissions/foreground service
 - ✅ Platform differences are documented rather than hidden — README's Platform behavior differences table
-- ⬜ Real-device (iOS 16.1+ / Android 13+) end-to-end verification has not been performed yet; nothing in this branch's history records a physical-device pass. This remains open against Success Metric #2 above.
+- ⬜ Real-device (iOS 16.1+ / Android 13+) end-to-end verification has not been performed yet; nothing in this branch's history records a physical-device pass. Same gap as the lifecycle bullet above — closing both is Task 9's job.
 - ⬜ §3 Non-Goals remain non-goals for v0.1.0 (push updates, turnkey Expo support, UI parity)

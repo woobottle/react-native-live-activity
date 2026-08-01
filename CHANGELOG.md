@@ -1,7 +1,7 @@
 # Changelog
 
-This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-and [Semantic Versioning](https://semver.org/).
+This project's format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+(with an added "Known limitations" section); versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
@@ -21,9 +21,10 @@ First public release.
 - Swift / Kotlin content-parser unit tests, GitHub Actions CI
 
 ### Known limitations
-- `content.timer` is parsed and validated on both platforms, but only the iOS
-  widget renders a live countdown from it — Android's native module does not
-  read the field at all, so it has no effect on the Android notification.
+- `content.timer` is parsed and validated on **iOS only**. On Android the
+  field is not read at all — not parsed, not validated, just ignored — so a
+  malformed `timer` payload is silently accepted there instead of being
+  rejected, and no countdown is rendered either way.
 - `getActiveActivities()` only returns still-running activities after a
   process restart on iOS; Android always returns an empty array in that case
   because its snapshot lives only in process memory.
