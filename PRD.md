@@ -198,3 +198,15 @@ Optional later expansion:
 - Example app can start/update/end a live surface on supported iOS and Android devices
 - Setup docs are sufficient for first integration
 - API feels coherent despite platform differences
+
+---
+
+## 11. v0.1.0 current status (2026-08-01)
+
+- ✅ Installable into a bare RN app — CI's android/ios jobs verify this on every push
+- ✅ Example app runs the start/update/end lifecycle on both platforms (verified via CI build/unit-test jobs, not on physical hardware — see below)
+- ✅ Native countdown timer works end-to-end on **iOS only**; Android's native module does not read `content.timer` at all, so it has no rendering effect there (see README **Platform behavior differences**)
+- ✅ Native setup docs — README's iOS Widget Extension setup, Android permissions/foreground service
+- ✅ Platform differences are documented rather than hidden — README's Platform behavior differences table
+- ⬜ Real-device (iOS 16.1+ / Android 13+) end-to-end verification has not been performed yet; nothing in this branch's history records a physical-device pass. This remains open against Success Metric #2 above.
+- ⬜ §3 Non-Goals remain non-goals for v0.1.0 (push updates, turnkey Expo support, UI parity)

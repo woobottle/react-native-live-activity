@@ -2,7 +2,7 @@
 
 > React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.
 
-**Status:** native lifecycle + iOS Widget Extension in place. The JS API surface, iOS ActivityKit lifecycle calls, the iOS Live Activity UI (Lock Screen + Dynamic Island) in the example app, and Android ongoing notification lifecycle calls are all implemented. Remaining work is an end-to-end build/device verification pass (blocked locally by an out-of-date Xcode toolchain). See [`TECH-PLAN.md`](./TECH-PLAN.md) for the phased build path.
+**Status:** v0.1.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity — though only iOS actually returns still-running activities after the app process restarts; Android returns an empty array in that case. The native countdown timer (`content.timer`) currently renders **on iOS only**; the Android native module doesn't read that field at all. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
 
 ---
 
@@ -13,9 +13,9 @@ iOS Live Activity and Android's live update / promoted ongoing notification patt
 ## Install
 
 ```sh
-npm install react-native-live-activity
+npm install @woobottle/react-native-live-activity
 # or
-yarn add react-native-live-activity
+yarn add @woobottle/react-native-live-activity
 ```
 
 iOS:
@@ -29,16 +29,22 @@ Android: autolinked via `react-native.config.js`.
 ## JS API
 
 ```ts
-import { LiveActivity, type LiveActivityContent } from 'react-native-live-activity'
+import {
+  LiveActivity,
+  type LiveActivityContent,
+} from '@woobottle/react-native-live-activity'
 
 await LiveActivity.isSupported()
 // => boolean
 
-const { activityId } = await LiveActivity.startActivity({
-  title: 'Pizza on the way',
-  subtitle: '12 min away',
-  progress: 0.4,
-})
+const { activityId } = await LiveActivity.startActivity(
+  {
+    title: 'Pizza on the way',
+    subtitle: '12 min away',
+    progress: 0.4,
+  },
+  { referenceId: 'order-42' },
+)
 
 await LiveActivity.updateActivity(activityId, {
   title: 'Pizza on the way',
@@ -52,19 +58,83 @@ await LiveActivity.endActivity(activityId)
 await LiveActivity.getPlatformCapabilities()
 // iOS     => { iosLiveActivity: <areActivitiesEnabled>, androidLiveUpdate: false }
 // Android => { iosLiveActivity: false, androidLiveUpdate: <notifications enabled> }
+
+// Reconnect to an activity started before a JS process restart:
+const active = await LiveActivity.getActiveActivities()
+const mine = active.find(a => a.referenceId === 'order-42')
 ```
+
+### Native countdown timer (iOS only)
+
+Pass a `timer` and the **native widget draws the remaining time itself** on
+iOS — no need for JS to wake up every second and call `updateActivity`. Call
+it once to start, and again only on pause/resume/completion.
+
+```ts
+const now = Date.now()
+
+// Start
+await LiveActivity.startActivity({
+  title: 'Focus for 10 minutes',
+  timer: { startAt: now, endAt: now + 10 * 60 * 1000, state: 'running' },
+})
+
+// Pause — JS does not compute the remaining time, only the moment it paused.
+await LiveActivity.updateActivity(activityId, {
+  title: 'Focus for 10 minutes',
+  timer: { startAt: now, endAt: now + 10 * 60 * 1000, pauseAt: Date.now(), state: 'paused' },
+})
+
+// Complete
+await LiveActivity.updateActivity(activityId, {
+  title: 'Focus for 10 minutes',
+  timer: { startAt: now, endAt: now + 10 * 60 * 1000, state: 'completed' },
+})
+```
+
+All timestamps are **epoch milliseconds**. When `state: 'paused'`, `pauseAt`
+is required and must satisfy `startAt <= pauseAt <= endAt`; violating either
+rejects with `E_INVALID_CONTENT`.
+
+**This only renders on iOS.** The Android native module currently parses and
+uses only `title` / `subtitle` / `progress` — `content.timer` passes JSON
+validation (both platforms share the same JS types) but the Android module
+never reads it, so it has **zero effect** on the Android notification. If an
+Android build needs a visible countdown today, the app has to keep computing
+it in JS and pushing it through `progress`/`subtitle` on its own polling
+interval — the "no JS polling" benefit above is iOS-only. See **Platform
+behavior differences** below.
 
 ### Types
 
 ```ts
+type LiveActivityTimerState = 'running' | 'paused' | 'completed'
+
+type LiveActivityTimer = {
+  startAt: number      // epoch milliseconds
+  endAt: number        // epoch milliseconds
+  pauseAt?: number     // epoch milliseconds — required when state === 'paused'
+  state: LiveActivityTimerState
+}
+
 type LiveActivityContent = {
   title: string
   subtitle?: string
-  progress?: number
+  progress?: number    // 0..1
+  timer?: LiveActivityTimer
 }
 
-type StartLiveActivityResult = {
+type StartActivityOptions = {
+  referenceId?: string
+  android?: { foregroundService?: boolean }
+}
+
+type StartLiveActivityResult = { activityId: string }
+
+type ActiveLiveActivity = {
   activityId: string
+  referenceId?: string
+  content: LiveActivityContent
 }
 
 type PlatformCapabilities = {
@@ -74,6 +144,33 @@ type PlatformCapabilities = {
 ```
 
 The content schema is intentionally narrow for v1 (see PRD §3 non-goals). Richer/typed surface families may land later.
+
+## Platform behavior differences
+
+The two OS models genuinely diverge at these points. Documented rather than
+papered over, per PRD §6 ("document platform differences honestly").
+
+| Situation | iOS | Android |
+|---|---|---|
+| `updateActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | **creates a new notification** under that id — there is no existence check before posting |
+| `endActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | resolves silently (cancelling a non-existent notification is a no-op) |
+| `getActiveActivities()` after the app process restarts | ActivityKit owns activity state independently of the app process, so it **returns the still-running activities** | the snapshot lives only in an in-memory map inside the module, so it **returns an empty array**. What happens to the notification itself differs by how it was started: a plain notification (`NotificationManager.notify`) is posted independently of the process and typically survives; a **foreground-service** activity is more likely to disappear — if the OS restarts the service after the process dies, it's restarted with a `null` intent, and the service's `onStartCommand` calls `stopSelf()` immediately in that case rather than restoring anything |
+| `isSupported()` / `getPlatformCapabilities()` | `ActivityAuthorizationInfo().areActivitiesEnabled` (iOS 16.1+; `false` below that) | whether `POST_NOTIFICATIONS` is granted (Android 13+) **and** the system notification toggle is on (Android 7+) — not a single permission check |
+| `content.timer` (countdown rendering) | parsed, validated, and rendered live by the widget via `Text(timerInterval:)` | **not parsed at all.** The field is silently ignored; it has no effect on the notification. Rejecting bad progress/timer shapes is otherwise consistent across platforms now — see note below |
+| `{ android: { foregroundService: true } }` | no-op | hosted via a foreground service. v1 supports **one at a time** — starting a second foreground activity replaces the first's notification |
+
+Note on input validation: booleans and non-finite numbers (`NaN`/`Infinity`)
+for `progress` are rejected on both platforms now — iOS via an explicit
+`CFGetTypeID` guard against CFBoolean-backed `NSNumber`, Android via
+`ReadableType.Number` plus a `0.0..1.0` range check that also happens to
+reject `NaN`. This used to be an iOS-only fix; it no longer is. (Android
+doesn't need an equivalent guard for `timer` because it doesn't read that
+field at all.)
+
+Apps that need to recover after an Android restart should keep their own
+activity id alongside `referenceId` (e.g. in AsyncStorage) and, on resume,
+call `endActivity` followed by a fresh `startActivity` rather than relying on
+`getActiveActivities()`.
 
 ## Platform notes
 
@@ -125,8 +222,9 @@ The example project wires all of this up. The target was added programmatically 
 
 ```
 src/                    TypeScript public API and native bridge
-ios/                    Swift module + ObjC RCT_EXTERN bridge
-android/                Kotlin module + ReactPackage
+ios/                    Swift module + ObjC RCT_EXTERN bridge + content parser
+android/                Kotlin module + ReactPackage + content parser
+tests/ios/              SwiftPM package for parser unit tests (`swift test --package-path tests/ios`)
 example/                Bare React Native app for manual lifecycle testing
 PRD.md                  Product scope, MVP, success criteria
 TECH-PLAN.md            Architecture, API shape, phased build plan
@@ -134,18 +232,19 @@ TECH-PLAN.md            Architecture, API shape, phased build plan
 
 ## Roadmap
 
-Phases tracked in [`TECH-PLAN.md`](./TECH-PLAN.md):
-
-1. ✅ Repo scaffold + docs
-2. ✅ JS API contract and type surface
-3. ✅ iOS native module stub
-4. ✅ Android native module stub
-5. ✅ Example app baseline
-6. ✅ iOS `startActivity` working path
-7. ✅ Android `startActivity` working path
-8. ✅ iOS `update` / `end` working path
-9. ✅ Android `update` / `end` working path
-10. ⏳ Docs hardening
+- [x] JS API contract and type surface
+- [x] iOS ActivityKit start/update/end
+- [x] Android ongoing-notification start/update/end
+- [x] iOS Widget Extension example (Lock Screen + Dynamic Island)
+- [x] Android foreground-service opt-in
+- [x] iOS native countdown timer (Android does not read `content.timer` — see the table above)
+- [x] `referenceId` + `getActiveActivities` reconnect (iOS: survives a process restart; Android: resets to empty — see the table above)
+- [x] JS / Swift / Kotlin unit tests + CI
+- [ ] Android native countdown timer
+- [ ] Real-device (iOS 16.1+ / Android 13+) E2E verification
+- [ ] Push-based updates (ActivityKit push token)
+- [ ] Expo config plugin
+- [ ] New Architecture (TurboModule) native rewrite
 
 ## Development
 
