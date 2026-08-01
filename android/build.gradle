@@ -1,6 +1,13 @@
 buildscript {
-  ext.kotlin_version =
-    rootProject.ext.has('kotlinVersion') ? rootProject.ext.get('kotlinVersion') : '1.9.24'
+  // 소비자 rootProject가 쓰는 Kotlin 버전을 따라간다.
+  // RN 0.7x 템플릿은 `kotlinVersion`(카멜)을, 구형 프로젝트는 `kotlin_version`(스네이크)을
+  // 정의한다. 둘 다 없으면 폴백. `rootProject.ext.has()`로 조회해야 하는 이유는
+  // 없는 extra property를 직접 읽으면 Gradle이 예외를 던지기 때문이다.
+  def kotlinVersion = rootProject.ext.has('kotlinVersion')
+    ? rootProject.ext.get('kotlinVersion')
+    : rootProject.ext.has('kotlin_version')
+      ? rootProject.ext.get('kotlin_version')
+      : '1.9.24'
 
   repositories {
     google()
@@ -9,7 +16,7 @@ buildscript {
 
   dependencies {
     classpath 'com.android.tools.build:gradle:8.1.1'
-    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
   }
 }
 
@@ -19,6 +26,11 @@ apply plugin: 'kotlin-android'
 def safeExtGet(prop, fallback) {
   rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
+
+def kotlinVersion = safeExtGet(
+  'kotlinVersion',
+  safeExtGet('kotlin_version', '1.9.24')
+)
 
 android {
   namespace 'com.woobottle.liveactivity'
@@ -46,5 +58,5 @@ repositories {
 
 dependencies {
   implementation 'com.facebook.react:react-android'
-  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
 }
