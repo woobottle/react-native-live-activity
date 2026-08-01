@@ -38,6 +38,32 @@ class LiveActivityModule: NSObject {
     ])
   }
 
+  // MARK: - getActiveActivities
+
+  @objc func getActiveActivities(_ resolve: @escaping RCTPromiseResolveBlock,
+                                 rejecter reject: @escaping RCTPromiseRejectBlock) {
+    guard #available(iOS 16.1, *) else {
+      resolve([])
+      return
+    }
+
+    let activities = Activity<LiveActivityAttributes>.activities.map { activity in
+      let state: LiveActivityAttributes.ContentState
+      if #available(iOS 16.2, *) {
+        state = activity.content.state
+      } else {
+        state = activity.contentState
+      }
+
+      return Self.serialize(
+        activityId: activity.id,
+        referenceId: activity.attributes.referenceId,
+        state: state
+      )
+    }
+    resolve(activities)
+  }
+
   // MARK: - startActivity
 
   // `options` (e.g. Android's foregroundService) is accepted for a uniform
@@ -56,16 +82,31 @@ class LiveActivityModule: NSObject {
       return
     }
 
-    guard let state = Self.makeContentState(from: content, rejecter: reject) else {
+    guard let parsed = Self.makeContent(from: content, rejecter: reject) else {
       return
     }
 
+    let referenceId = options["referenceId"] as? String
+    let attributes = LiveActivityAttributes(referenceId: referenceId)
+
     do {
-      let activity = try Activity<LiveActivityAttributes>.request(
-        attributes: LiveActivityAttributes(),
-        contentState: state,
-        pushType: nil
-      )
+      let activity: Activity<LiveActivityAttributes>
+      if #available(iOS 16.2, *) {
+        activity = try Activity<LiveActivityAttributes>.request(
+          attributes: attributes,
+          content: ActivityContent(
+            state: parsed.state,
+            staleDate: parsed.staleDate
+          ),
+          pushType: nil
+        )
+      } else {
+        activity = try Activity<LiveActivityAttributes>.request(
+          attributes: attributes,
+          contentState: parsed.state,
+          pushType: nil
+        )
+      }
       resolve(["activityId": activity.id])
     } catch {
       reject("E_START_FAILED", "Failed to start Live Activity", error)
@@ -83,7 +124,7 @@ class LiveActivityModule: NSObject {
       return
     }
 
-    guard let state = Self.makeContentState(from: content, rejecter: reject) else {
+    guard let parsed = Self.makeContent(from: content, rejecter: reject) else {
       return
     }
 
@@ -95,9 +136,14 @@ class LiveActivityModule: NSObject {
 
     Task {
       if #available(iOS 16.2, *) {
-        await activity.update(ActivityContent(state: state, staleDate: nil))
+        await activity.update(
+          ActivityContent(
+            state: parsed.state,
+            staleDate: parsed.staleDate
+          )
+        )
       } else {
-        await activity.update(using: state)
+        await activity.update(using: parsed.state)
       }
       resolve(nil)
     }
@@ -139,30 +185,79 @@ class LiveActivityModule: NSObject {
   }
 
   @available(iOS 16.1, *)
-  private static func makeContentState(
+  private struct ParsedActivityContent {
+    let state: LiveActivityAttributes.ContentState
+    let staleDate: Date?
+  }
+
+  @available(iOS 16.1, *)
+  private static func makeContent(
     from content: NSDictionary,
     rejecter reject: RCTPromiseRejectBlock
-  ) -> LiveActivityAttributes.ContentState? {
-    guard let title = content["title"] as? String, !title.isEmpty else {
-      reject("E_INVALID_CONTENT", "content.title must be a non-empty string", nil)
+  ) -> ParsedActivityContent? {
+    let parsed: LiveActivityParsedContent
+    do {
+      parsed = try LiveActivityContentParser.parse(content as? [AnyHashable: Any] ?? [:])
+    } catch let error as LiveActivityContentError {
+      reject("E_INVALID_CONTENT", error.message, nil)
+      return nil
+    } catch {
+      reject("E_INVALID_CONTENT", "content is invalid", error)
       return nil
     }
 
-    let subtitle = content["subtitle"] as? String
-    let progress = content["progress"] as? NSNumber
-    let normalizedProgress = progress?.doubleValue
+    let state = LiveActivityAttributes.ContentState(
+      title: parsed.title,
+      subtitle: parsed.subtitle,
+      progress: parsed.progress,
+      timerStartAt: parsed.timer?.startAt,
+      timerEndAt: parsed.timer?.endAt,
+      timerPauseAt: parsed.timer?.pauseAt,
+      timerState: parsed.timer?.state
+    )
 
-    if let normalizedProgress = normalizedProgress {
-      if normalizedProgress < 0 || normalizedProgress > 1 {
-        reject("E_INVALID_CONTENT", "content.progress must be between 0 and 1", nil)
-        return nil
+    // 실행 중인 타이머는 종료 시점 이후 stale로 표시해 위젯이 낡은 값을 계속
+    // 보여주지 않게 한다.
+    let staleDate = parsed.timer?.state == "running" ? parsed.timer?.endAt : nil
+    return ParsedActivityContent(state: state, staleDate: staleDate)
+  }
+
+  @available(iOS 16.1, *)
+  private static func serialize(
+    activityId: String,
+    referenceId: String?,
+    state: LiveActivityAttributes.ContentState
+  ) -> [String: Any] {
+    var content: [String: Any] = ["title": state.title]
+    if let subtitle = state.subtitle {
+      content["subtitle"] = subtitle
+    }
+    if let progress = state.progress {
+      content["progress"] = progress
+    }
+    if
+      let startAt = state.timerStartAt,
+      let endAt = state.timerEndAt,
+      let timerState = state.timerState
+    {
+      var timer: [String: Any] = [
+        "startAt": LiveActivityContentParser.milliseconds(from: startAt),
+        "endAt": LiveActivityContentParser.milliseconds(from: endAt),
+        "state": timerState,
+      ]
+      if let pauseAt = state.timerPauseAt {
+        timer["pauseAt"] = LiveActivityContentParser.milliseconds(from: pauseAt)
       }
+      content["timer"] = timer
     }
 
-    return LiveActivityAttributes.ContentState(
-      title: title,
-      subtitle: subtitle,
-      progress: normalizedProgress
-    )
+    var serialized: [String: Any] = [
+      "activityId": activityId,
+      "content": content,
+    ]
+    if let referenceId {
+      serialized["referenceId"] = referenceId
+    }
+    return serialized
   }
 }

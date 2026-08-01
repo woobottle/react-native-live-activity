@@ -10,7 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "react-native-live-activity": "file:..",
+    "@woobottle/react-native-live-activity": "file:..",
     "react": "18.3.1",
     "react-native": "0.76.0"
   },

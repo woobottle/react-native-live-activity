@@ -1,5 +1,6 @@
 import NativeLiveActivity from './NativeLiveActivity'
 import type {
+  ActiveLiveActivity,
   LiveActivityContent,
   PlatformCapabilities,
   StartActivityOptions,
@@ -18,6 +19,10 @@ export const LiveActivity = {
 
   getPlatformCapabilities(): Promise<PlatformCapabilities> {
     return NativeLiveActivity.getPlatformCapabilities()
+  },
+
+  getActiveActivities(): Promise<ActiveLiveActivity[]> {
+    return NativeLiveActivity.getActiveActivities()
   },
 
   startActivity(

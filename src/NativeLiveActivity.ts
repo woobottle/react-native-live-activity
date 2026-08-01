@@ -1,6 +1,7 @@
 import { NativeModules, Platform } from 'react-native'
 
 import type {
+  ActiveLiveActivity,
   LiveActivityContent,
   PlatformCapabilities,
   StartActivityOptions,
@@ -10,6 +11,7 @@ import type {
 export type NativeLiveActivityModule = {
   isSupported(): Promise<boolean>
   getPlatformCapabilities(): Promise<PlatformCapabilities>
+  getActiveActivities(): Promise<ActiveLiveActivity[]>
   startActivity(
     content: LiveActivityContent,
     options: StartActivityOptions,
@@ -19,7 +21,7 @@ export type NativeLiveActivityModule = {
 }
 
 const LINKING_ERROR =
-  `The package 'react-native-live-activity' doesn't seem to be linked. Make sure: \n\n` +
+  `The package '@woobottle/react-native-live-activity' doesn't seem to be linked. Make sure: \n\n` +
   Platform.select({ ios: "- You have run 'pod install'\n", default: '' }) +
   '- You rebuilt the app after installing the package\n' +
   '- You are not using Expo Go\n'

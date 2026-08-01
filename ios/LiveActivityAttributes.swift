@@ -20,14 +20,34 @@ public struct LiveActivityAttributes: ActivityAttributes {
     public var title: String
     public var subtitle: String?
     public var progress: Double?
+    public var timerStartAt: Date?
+    public var timerEndAt: Date?
+    public var timerPauseAt: Date?
+    public var timerState: String?
 
-    public init(title: String, subtitle: String?, progress: Double?) {
+    public init(
+      title: String,
+      subtitle: String?,
+      progress: Double?,
+      timerStartAt: Date? = nil,
+      timerEndAt: Date? = nil,
+      timerPauseAt: Date? = nil,
+      timerState: String? = nil
+    ) {
       self.title = title
       self.subtitle = subtitle
       self.progress = progress
+      self.timerStartAt = timerStartAt
+      self.timerEndAt = timerEndAt
+      self.timerPauseAt = timerPauseAt
+      self.timerState = timerState
     }
   }
 
-  public init() {}
+  public var referenceId: String?
+
+  public init(referenceId: String? = nil) {
+    self.referenceId = referenceId
+  }
 }
 #endif

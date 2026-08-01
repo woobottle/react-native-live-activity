@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   # Module loads on iOS 15.1+; ActivityKit features are gated to iOS 16.1+
   # at runtime so that consuming apps can still target lower iOS versions.
   s.platforms    = { :ios => "15.1" }
-  s.source       = { :git => "https://github.com/woobottle/react-native-live-activity.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/woobottle/react-native-live-activity.git", :tag => "v#{s.version}" }
 
   s.source_files = "ios/**/*.{h,m,mm,swift}"
   s.swift_version = "5.5"

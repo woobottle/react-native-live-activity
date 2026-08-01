@@ -3,10 +3,21 @@
  * Kept narrow on purpose - PRD §3 explicitly excludes arbitrary dynamic
  * layouts. Future versions may add typed variants per surface family.
  */
+export type LiveActivityTimerState = 'running' | 'paused' | 'completed'
+
+export type LiveActivityTimer = {
+  startAt: number
+  endAt: number
+  pauseAt?: number
+  state: LiveActivityTimerState
+}
+
 export type LiveActivityContent = {
   title: string
   subtitle?: string
   progress?: number
+  /** Rendered on iOS only in this version; ignored on Android (not parsed, not validated). */
+  timer?: LiveActivityTimer
 }
 
 export type StartLiveActivityResult = {
@@ -18,6 +29,11 @@ export type StartLiveActivityResult = {
  * keys so the shared surface stays honest about where a knob actually applies.
  */
 export type StartActivityOptions = {
+  /**
+   * Stable product identifier used to reconnect to a native activity after the
+   * JavaScript process restarts.
+   */
+  referenceId?: string
   android?: {
     /**
      * Run the ongoing notification via a foreground service so long-running
@@ -27,6 +43,12 @@ export type StartActivityOptions = {
      */
     foregroundService?: boolean
   }
+}
+
+export type ActiveLiveActivity = {
+  activityId: string
+  referenceId?: string
+  content: LiveActivityContent
 }
 
 export type PlatformCapabilities = {

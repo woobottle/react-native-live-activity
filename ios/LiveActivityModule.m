@@ -8,6 +8,9 @@ RCT_EXTERN_METHOD(isSupported:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getPlatformCapabilities:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(getActiveActivities:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(startActivity:(NSDictionary *)content
                   options:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve

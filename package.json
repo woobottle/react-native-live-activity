@@ -1,23 +1,47 @@
 {
-  "name": "react-native-live-activity",
-  "version": "0.0.1",
+  "name": "@woobottle/react-native-live-activity",
+  "version": "0.1.0",
   "description": "React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "lib/commonjs/index.js",
+  "types": "lib/typescript/index.d.ts",
   "react-native": "src/index.ts",
   "source": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/typescript/index.d.ts",
+      "react-native": "./src/index.ts",
+      "default": "./lib/commonjs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "src",
+    "lib",
     "ios",
     "android",
     "react-native.config.js",
     "react-native-live-activity.podspec",
-    "PRD.md",
-    "TECH-PLAN.md",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!android/build",
+    "!android/.gradle",
+    "!android/src/test",
+    "!**/__tests__"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "del-cli lib",
+    "build": "bob build",
+    "prepare": "bob build"
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      "commonjs",
+      ["typescript", { "project": "tsconfig.build.json" }]
+    ]
   },
   "keywords": [
     "react-native",
@@ -36,13 +60,15 @@
   "author": "woobottle <dkrnfls@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*"
+    "react": ">=18.0.0",
+    "react-native": ">=0.72.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",
+    "del-cli": "^7.0.0",
     "react": "18.3.1",
     "react-native": "0.76.0",
+    "react-native-builder-bob": "^0.43.0",
     "typescript": "^5.4.0"
   }
 }

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  js:
+    name: JS (typecheck, build, unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Verify the tarball ships built output
+        run: |
+          set -euo pipefail
+          OUTPUT="$(npm pack --dry-run 2>&1)"
+          echo "$OUTPUT"
+          MISSING=0
+          for entry in "lib/commonjs/index.js" "lib/typescript/index.d.ts" "LICENSE" "src/index.ts" "ios/LiveActivityModule.swift" "android/src/main/java/com/woobottle/liveactivity/LiveActivityModule.kt"; do
+            pattern="[[:space:]]${entry//./\\.}\$"
+            if ! echo "$OUTPUT" | grep -qE "$pattern"; then
+              echo "Missing from tarball: $entry"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Tarball contains all required entries."
+      - name: Example unit tests
+        working-directory: example
+        run: |
+          npm ci
+          npm test
+
+  android:
+    name: Android (assemble + unit tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Install example dependencies
+        working-directory: example
+        run: npm ci
+      - name: Build and test the library module
+        working-directory: example/android
+        run: ./gradlew :woobottle_react-native-live-activity:assembleDebug :woobottle_react-native-live-activity:testDebugUnitTest --console=plain
+
+  ios:
+    name: iOS (parser unit tests + pod install)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Parser unit tests
+        run: swift test --package-path tests/ios
+      - run: npm ci
+      - name: Install example dependencies
+        working-directory: example
+        run: npm ci
+      - name: pod install
+        working-directory: example/ios
+        run: pod install
