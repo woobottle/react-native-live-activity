@@ -59,4 +59,5 @@ repositories {
 dependencies {
   implementation 'com.facebook.react:react-android'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+  testImplementation 'junit:junit:4.13.2'
 }

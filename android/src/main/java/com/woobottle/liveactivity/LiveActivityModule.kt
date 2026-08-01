@@ -15,7 +15,6 @@ import com.facebook.react.bridge.WritableNativeMap
 import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.roundToInt
 
 class LiveActivityModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
@@ -59,7 +58,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
     try {
       requireNotificationPermission()
-      val parsed = parseContent(content)
+      val parsed = LiveActivityContentParser.parse(content)
 
       if (isForegroundRequested(options)) {
         LiveActivityForegroundService.start(
@@ -91,7 +90,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   fun updateActivity(activityId: String, content: ReadableMap, promise: Promise) {
     try {
       requireValidActivityId(activityId)
-      val parsed = parseContent(content)
+      val parsed = LiveActivityContentParser.parse(content)
 
       if (foregroundActivityIds.contains(activityId)) {
         LiveActivityForegroundService.start(
@@ -137,7 +136,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   private val context: ReactApplicationContext
     get() = reactApplicationContext
 
-  private fun showNotification(activityId: String, content: ParsedContent) {
+  private fun showNotification(activityId: String, content: LiveActivityContentParser.ParsedContent) {
     requireValidActivityId(activityId)
     requireNotificationPermission()
     LiveActivityNotifications.ensureChannel(context)
@@ -151,22 +150,10 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     )
   }
 
-  private data class ParsedContent(
-    val title: String,
-    val subtitle: String?,
-    val progress: Int?
-  )
-
   private data class ActivitySnapshot(
     val activityId: String,
     val referenceId: String?,
     val content: HashMap<String, Any>
-  )
-
-  private fun parseContent(content: ReadableMap): ParsedContent = ParsedContent(
-    title = content.requiredString("title"),
-    subtitle = content.optionalString("subtitle"),
-    progress = content.optionalProgress("progress")
   )
 
   private fun isForegroundRequested(options: ReadableMap?): Boolean {
@@ -216,36 +203,6 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
   private fun requireValidActivityId(activityId: String) {
     require(activityId.isNotBlank()) { "activityId must not be blank." }
-  }
-
-  private fun ReadableMap.requiredString(key: String): String {
-    require(hasKey(key) && !isNull(key) && getType(key) == ReadableType.String) {
-      "$key must be a string."
-    }
-
-    val value = getString(key)?.trim().orEmpty()
-    require(value.isNotEmpty()) { "$key must not be blank." }
-    return value
-  }
-
-  private fun ReadableMap.optionalString(key: String): String? {
-    if (!hasKey(key) || isNull(key)) {
-      return null
-    }
-
-    require(getType(key) == ReadableType.String) { "$key must be a string." }
-    return getString(key)
-  }
-
-  private fun ReadableMap.optionalProgress(key: String): Int? {
-    if (!hasKey(key) || isNull(key)) {
-      return null
-    }
-
-    require(getType(key) == ReadableType.Number) { "$key must be a number." }
-    val value = getDouble(key)
-    require(value in 0.0..1.0) { "$key must be between 0 and 1." }
-    return (value * LiveActivityNotifications.MAX_PROGRESS).roundToInt()
   }
 
   companion object {
