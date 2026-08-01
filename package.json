@@ -28,6 +28,7 @@
     "LICENSE",
     "!android/build",
     "!android/.gradle",
+    "!android/src/test",
     "!**/__tests__"
   ],
   "scripts": {

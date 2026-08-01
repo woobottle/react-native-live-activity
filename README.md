@@ -147,6 +147,10 @@ Phases tracked in [`TECH-PLAN.md`](./TECH-PLAN.md):
 9. ✅ Android `update` / `end` working path
 10. ⏳ Docs hardening
 
+## Development
+
+Run `npm install` at the repo root **before** `npm install` inside `example/`. The root install's `prepare` hook builds `lib/` with `react-native-builder-bob`, and `example/` depends on the root package by path (`file:..`) rather than a published version, so its own install can trigger that same `prepare` hook against the root's `node_modules` — which only works once the root's build tooling is already installed.
+
 ## License
 
 MIT
