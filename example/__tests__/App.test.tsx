@@ -13,7 +13,7 @@ const mockStartActivity = jest.fn(() =>
   Promise.resolve({activityId: 'test-id'}),
 );
 
-jest.mock('react-native-live-activity', () => ({
+jest.mock('@woobottle/react-native-live-activity', () => ({
   LiveActivity: {
     isSupported: () => Promise.resolve(true),
     getActiveActivities: () => Promise.resolve([]),

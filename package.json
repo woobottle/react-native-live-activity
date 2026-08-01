@@ -1,6 +1,6 @@
 {
-  "name": "react-native-live-activity",
-  "version": "0.0.1",
+  "name": "@woobottle/react-native-live-activity",
+  "version": "0.1.0",
   "description": "React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -36,8 +36,8 @@
   "author": "woobottle <dkrnfls@gmail.com>",
   "license": "MIT",
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*"
+    "react": ">=18.0.0",
+    "react-native": ">=0.72.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

@@ -28,7 +28,7 @@ const native = {
 // Install before the library captures NativeModules.LiveActivity.
 (NativeModules as any).LiveActivity = native;
 
-const {LiveActivity} = require('react-native-live-activity');
+const {LiveActivity} = require('@woobottle/react-native-live-activity');
 
 describe('LiveActivity JS surface', () => {
   beforeEach(() => {

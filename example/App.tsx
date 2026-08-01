@@ -15,7 +15,7 @@ import {
   type ActiveLiveActivity,
   type LiveActivityContent,
   type LiveActivityTimer,
-} from 'react-native-live-activity';
+} from '@woobottle/react-native-live-activity';
 
 const EXAMPLE_REFERENCE_ID = 'example-timer';
 const TEN_MINUTES_MS = 10 * 60 * 1000;
