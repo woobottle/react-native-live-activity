@@ -11,8 +11,7 @@
     ".": {
       "types": "./lib/typescript/index.d.ts",
       "react-native": "./src/index.ts",
-      "import": "./lib/module/index.js",
-      "require": "./lib/commonjs/index.js"
+      "default": "./lib/commonjs/index.js"
     },
     "./package.json": "./package.json"
   },

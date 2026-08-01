@@ -156,7 +156,7 @@ papered over, per PRD §6 ("document platform differences honestly").
 | `endActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | resolves silently (cancelling a non-existent notification is a no-op) |
 | `getActiveActivities()` after the app process restarts | ActivityKit owns activity state independently of the app process, so it **returns the still-running activities** | the snapshot lives only in an in-memory map inside the module, so it **returns an empty array**. What happens to the notification itself differs by how it was started: a plain notification (`NotificationManager.notify`) is posted independently of the process and typically survives; a **foreground-service** activity is more likely to disappear — if the OS restarts the service after the process dies, it's restarted with a `null` intent, and the service's `onStartCommand` calls `stopSelf()` immediately in that case rather than restoring anything |
 | `isSupported()` / `getPlatformCapabilities()` | `ActivityAuthorizationInfo().areActivitiesEnabled` (iOS 16.1+; `false` below that) | whether `POST_NOTIFICATIONS` is granted (Android 13+) **and** the system notification toggle is on (Android 7+) — not a single permission check |
-| `content.timer` (countdown rendering) | parsed, validated, and rendered live by the widget via `Text(timerInterval:)` | **not parsed at all.** The field is silently ignored; it has no effect on the notification. Rejecting bad progress/timer shapes is otherwise consistent across platforms now — see note below |
+| `content.timer` (countdown rendering) | parsed, validated, and rendered live by the widget via `Text(timerInterval:)` | **not parsed at all.** The field is silently ignored; it has no effect on the notification. It is also echoed back unvalidated through `getActiveActivities()` — see note below. Rejecting bad `progress` shapes is otherwise consistent across platforms now — see note below |
 | `{ android: { foregroundService: true } }` | no-op | hosted via a foreground service. v1 supports **one at a time** — starting a second foreground activity replaces the first's notification |
 
 Note on input validation: booleans and non-finite numbers (`NaN`/`Infinity`)
@@ -166,6 +166,15 @@ for `progress` are rejected on both platforms now — iOS via an explicit
 reject `NaN`. This used to be an iOS-only fix; it no longer is. (Android
 doesn't need an equivalent guard for `timer` because it doesn't read that
 field at all.)
+
+Note on `getActiveActivities()` and `timer` on Android: the Android module
+stores the raw JS `content` payload as-is and returns it verbatim from
+`getActiveActivities()`, with no validation applied at either end. That means
+a call like `startActivity({ title: 'x', timer: { startAt: 'abc', state:
+'bogus' } })` succeeds on Android, and a later
+`(await getActiveActivities())[0].content.timer` can come back with a
+`state` outside `LiveActivityTimerState` and a `startAt` that isn't even a
+`number`. Consumers must not trust `content.timer` from an Android snapshot.
 
 Apps that need to recover after an Android restart should keep their own
 activity id alongside `referenceId` (e.g. in AsyncStorage) and, on resume,
@@ -216,7 +225,20 @@ The example project wires all of this up. The target was added programmatically 
   )
   ```
 
-  The library declares `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` (Android 14+, `dataSync` type) plus the service itself, so no extra app manifest wiring is required. `updateActivity` / `endActivity` are routed to the service automatically for ids started this way. v1 hosts one primary foreground activity at a time. The option is a no-op on iOS.
+  The library declares `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC` (Android 14+, `dataSync` type) plus the service itself. `updateActivity` / `endActivity` are routed to the service automatically for ids started this way. v1 hosts one primary foreground activity at a time. The option is a no-op on iOS.
+
+  **Consequence for every consumer, even those that never pass `foregroundService: true`:** `FOREGROUND_SERVICE_DATA_SYNC` is declared unconditionally in this library's manifest (`android/src/main/AndroidManifest.xml`), and Android manifest merge propagates it into the consuming app's merged manifest regardless of whether the app ever uses the option. On Android 14+ (API 34+), declaring this permission obliges a "Foreground service permissions" declaration in Play Console, and omitting that declaration at submission time can get a release rejected. If your app doesn't use `{ android: { foregroundService: true } }` and you want to avoid that obligation, remove the permission in your own app's `AndroidManifest.xml` via manifest merge:
+
+  ```xml
+  <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission
+      android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+      tools:node="remove" />
+  </manifest>
+  ```
+
+  Note the `xmlns:tools` namespace declaration above — `tools:node="remove"` is silently ignored without it.
 
 ## Project layout
 

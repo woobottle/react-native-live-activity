@@ -16,6 +16,7 @@ export type LiveActivityContent = {
   title: string
   subtitle?: string
   progress?: number
+  /** Rendered on iOS only in this version; ignored on Android (not parsed, not validated). */
   timer?: LiveActivityTimer
 }
 

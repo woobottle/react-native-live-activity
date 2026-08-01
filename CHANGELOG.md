@@ -30,6 +30,9 @@ First public release.
   because its snapshot lives only in process memory.
 - No real-device (iOS 16.1+ / Android 13+) end-to-end verification has been
   recorded yet for this release.
+- Android's opt-in foreground service (`{ android: { foregroundService: true } }`)
+  hosts only **one** primary foreground activity at a time; starting a second
+  foreground activity replaces the first's notification.
 
 ### Fixed
 - iOS: JS booleans and `NaN` used to pass `progress` / timer boundary validation
