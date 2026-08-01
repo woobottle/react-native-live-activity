@@ -111,6 +111,33 @@ final class LiveActivityContentParserTests: XCTestCase {
     }
   }
 
+  /// `{pauseAt: true}`도 startAt/endAt과 같은 CFBoolean-as-NSNumber 구멍을 갖는다.
+  func testRejectsBooleanPauseAt() {
+    XCTAssertThrowsError(
+      try LiveActivityContentParser.parse(
+        timerContent([
+          "startAt": 1_000_000, "endAt": 1_600_000,
+          "pauseAt": true, "state": "paused",
+        ])
+      )
+    ) { error in
+      XCTAssertEqual(error as? LiveActivityContentError, .timerBoundsInvalid)
+    }
+  }
+
+  func testRejectsNonFinitePauseAt() {
+    XCTAssertThrowsError(
+      try LiveActivityContentParser.parse(
+        timerContent([
+          "startAt": 1_000_000, "endAt": 1_600_000,
+          "pauseAt": Double.nan, "state": "paused",
+        ])
+      )
+    ) { error in
+      XCTAssertEqual(error as? LiveActivityContentError, .timerBoundsInvalid)
+    }
+  }
+
   func testRejectsEndBeforeStart() {
     XCTAssertThrowsError(
       try LiveActivityContentParser.parse(
