@@ -104,6 +104,18 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
 - [ ] End → 활동이 즉시 사라짐 (`dismissalPolicy: .immediate`)
 - [ ] Live Activities를 시스템 설정에서 끈 상태 → `isSupported()`가 false,
       `startActivity`가 `E_DISABLED`로 reject
+- [ ] **[플랫폼 분기 확인 — iOS]** 존재하지 않는 `activityId`(예: 실제로
+      `startActivity`가 반환한 적 없는 무작위 UUID)로 `updateActivity`와
+      `endActivity`를 각각 호출 → **둘 다** `E_NOT_FOUND`로 즉시 reject된다
+      (`LiveActivityModule.swift`의 `findActivity(id:)`가 nil을 반환하는
+      경로). 아래 Android 섹션의 동일 항목과 **결과가 다른지** 대조할 것 —
+      README "Platform behavior differences" 표의 첫 두 행이 실제로
+      갈라지는지 확인하는 항목.
+- [ ] `{ android: { foregroundService: true } }`를 iOS에서 `startActivity`에
+      넘김 → 아무 옵션도 안 준 것과 동일하게 동작한다 (no-op). 에러도,
+      다른 렌더링도 없어야 함 — `LiveActivityModule.swift` 69-70행 주석대로
+      "옵션은 교차 플랫폼 브리지 시그니처 통일을 위해 받아들여지지만 iOS에는
+      영향이 없다"가 실제로 그런지 확인.
 
 ## Android 기능 검증 (13 이상 1대 + 14 이상 1대 권장)
 
@@ -115,20 +127,52 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
 > Android 카운트다운 "기능" 항목은 없다 — 대신 그 payload가 크래시 없이
 > 조용히 무시되는지 확인하는 항목 하나만 "문서화된 제약 확인" 관점으로 둔다.
 
-- [ ] 최초 실행 시 `POST_NOTIFICATIONS` 권한 요청이 뜸
+- [ ] `example` 앱에서 Start 버튼을 처음 눌렀을 때 `POST_NOTIFICATIONS` 권한
+      요청이 뜸 — **앱 실행/콜드스타트 시점이 아니다.** `example/App.tsx`의
+      `ensureAndroidNotificationPermission()`은 `handleStart()` 안에서만
+      호출되므로(45-64행), 앱을 켜자마자 다이얼로그를 기다리면 아무 일도
+      일어나지 않는다. Start를 누르기 전에는 권한 요청이 뜨지 않는 게 정상.
 - [ ] 권한 거부 상태 → `isSupported()`가 false, `startActivity`가
       `E_NOTIFICATION_PERMISSION`으로 reject
+- [ ] **[Minor — isSupported 이중 게이트]** `POST_NOTIFICATIONS` 런타임 권한은
+      **허용**하되, 시스템 설정에서 앱 알림 자체를 끔(알림 토글 OFF) → 이
+      상태에서도 `isSupported()`가 false를 반환해야 한다.
+      `hasNotificationPermission()`(`LiveActivityModule.kt` 187-196행)이
+      런타임 권한과 `areNotificationsEnabled()`(시스템 토글)를 **둘 다** 요구
+      하기 때문 — 권한 거부 항목(바로 위)만으로는 이 경로가 검증되지 않는다.
 - [ ] Start → 상시 알림 표시 (스와이프로 지워지지 않음 — `setOngoing(true)`)
 - [ ] Update → 같은 알림이 제자리에서 갱신 (중복 알림 없음 — 동일
       tag/id로 `notify`)
 - [ ] End → 알림 사라짐
+- [ ] **[플랫폼 분기 확인 — Android]** 존재하지 않는 `activityId`(예:
+      `startActivity`가 반환한 적 없는 무작위 UUID)로 `updateActivity` 호출
+      → reject되지 않고 **그 id로 새 알림이 뜬다** (`requireValidActivityId`는
+      공백 여부만 검사하고, `showNotification`이 존재 확인 없이 바로
+      `notify()`를 호출하기 때문 — `LiveActivityModule.kt` 90-113행). 이어서
+      같은 무작위 id로 `endActivity` 호출 → **에러 없이 조용히 resolve**된다
+      (존재하지 않는 알림을 `cancel()`하는 건 no-op). 바로 위 iOS 섹션의
+      동일 항목(둘 다 `E_NOT_FOUND`)과 정확히 반대로 갈리는지 대조할 것 —
+      README 표의 첫 두 행이 실제로 이렇게 갈리는지 확인하는 항목.
 - [ ] **[문서화된 제약 확인]** `content.timer`가 포함된 payload로 Start/Update
       → 정상적으로 알림이 뜨거나 갱신됨, 크래시나 reject 없이 **timer 필드가
       조용히 무시됨** (title/subtitle/progress만 반영). README "Platform
       behavior differences" 표의 해당 행이 실제로 이렇게 동작하는지 확인하는
       항목 — 새 기능 검증이 아니다.
 - [ ] `{ android: { foregroundService: true } }`로 Start → 포그라운드 서비스
-      알림으로 뜸 (`FOREGROUND_SERVICE_TYPE_DATA_SYNC`, Android 14+)
+      알림으로 뜸. `startForeground`에 `FOREGROUND_SERVICE_TYPE_DATA_SYNC`
+      타입 플래그가 붙는 것은 Android 10(API 29, Q)부터이지 Android
+      14 전용이 아니다 (`LiveActivityForegroundService.kt` 57-63행) — 이
+      항목은 그 타입 플래그 자체를 확인하고, Android 14 전용 매니페스트
+      권한(`FOREGROUND_SERVICE_DATA_SYNC`)은 아래 별도 항목에서 확인한다.
+- [ ] **[Important — 포그라운드 동시성 한도]** 포그라운드 활동 A를
+      `{ android: { foregroundService: true } }`로 Start한 뒤, **A를 End하지
+      않은 채로** 두 번째 포그라운드 활동 B를 같은 옵션으로 Start → A의
+      알림이 사라지고 B의 알림으로 **교체**된다 (알림이 두 개 쌓이지 않고,
+      크래시나 조용한 실패도 없어야 함). `LiveActivityForegroundService.kt`
+      15-17행 문서 주석 "v1 scope: one primary foreground activity at a
+      time — starting another foreground activity replaces the hosted
+      notification"과 README 표 마지막 행이 실제로 그런지 확인하는 항목 —
+      지금까지 어떤 항목도 두 번째 포그라운드 활동을 시작해본 적이 없었다.
 - [ ] 포그라운드 모드에서 앱을 백그라운드로 보내고 10분 방치 → 알림 유지
 - [ ] Android 14 기기에서 `dataSync` 타입으로 정상 기동
       (`FOREGROUND_SERVICE_DATA_SYNC` 거부 크래시 없음)
@@ -138,6 +182,15 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
       알림 자체는 OS가 서비스를 `null` intent로 재시작하며 `onStartCommand`가
       즉시 `stopSelf()`를 호출해 사라지는 게 기대 동작 — 실제로 사라지는지도
       함께 관찰
+- [ ] **[Minor — 평범한 알림의 재시작 생존]** 위 항목과 대조: 포그라운드
+      서비스 **없이**(`foregroundService` 옵션 없이) 시작한 평범한 알림
+      상태에서 앱 프로세스를 강제종료 후 재실행 → `getActiveActivities()`는
+      마찬가지로 빈 배열을 반환하지만(인메모리 스냅샷이라), **알림 자체는
+      시스템 알림으로 독립적으로 게시된 것이라 화면에 계속 남아있어야 한다**
+      (README: "a plain notification ... is posted independently of the
+      process and typically survives"). 포그라운드 케이스(바로 위)는 알림이
+      사라지는 게 기대 동작이고, 이 평범한 케이스는 알림이 남는 게 기대
+      동작 — 두 결과가 실제로 다른지 대조할 것.
 
 ## [배포 후 전용] 게시된 패키지 설치 경로 검증
 
