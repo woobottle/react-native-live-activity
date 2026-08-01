@@ -24,7 +24,7 @@ jobs:
           OUTPUT="$(npm pack --dry-run 2>&1)"
           echo "$OUTPUT"
           MISSING=0
-          for entry in "lib/commonjs/index.js" "lib/module/index.js" "lib/typescript/index.d.ts" "LICENSE" "src/index.ts" "ios/LiveActivityModule.swift" "android/src/main/java/com/woobottle/liveactivity/LiveActivityModule.kt"; do
+          for entry in "lib/commonjs/index.js" "lib/typescript/index.d.ts" "LICENSE" "src/index.ts" "ios/LiveActivityModule.swift" "android/src/main/java/com/woobottle/liveactivity/LiveActivityModule.kt"; do
             pattern="[[:space:]]${entry//./\\.}\$"
             if ! echo "$OUTPUT" | grep -qE "$pattern"; then
               echo "Missing from tarball: $entry"
