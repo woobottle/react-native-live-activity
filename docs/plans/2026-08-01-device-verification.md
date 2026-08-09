@@ -26,21 +26,43 @@ supported iOS and Android devices", real-device E2E)가 이 문서의 완료 여
 > 최초의 사례다.
 >
 > **그 외 항목별 결과는 기록되지 않았다.** 아래 체크박스가 비어 있는 것은
-> "실패"가 아니라 **"개별 확인 결과가 남지 않음"** 을 뜻한다. 특히 다음은
-> 여전히 미검증으로 간주해야 한다:
+> "실패"가 아니라 **"개별 확인 결과가 남지 않음"** 을 뜻한다.
 >
-> - Dynamic Island의 compact / expanded / minimal 세 표현
-> - 카운트다운의 일시정지 → 재개 → 완료 전이
-> - 프로세스 강제종료 후 `getActiveActivities()` 재연결
-> - 모르는 `activityId`에 대한 플랫폼별 분기 (iOS `E_NOT_FOUND` vs Android 신규 알림 생성)
-> - 포그라운드 서비스: 동시 1개 제한, 장시간 유지, Android 14 `dataSync` 기동
-> - `isSupported()`의 두 번째 게이트(권한은 허용, 시스템 알림 토글은 끔)
-> - README의 Widget Extension 지침만 보고 처음부터 셋업하는 경로
-> - 검증에 사용한 기기·OS 버전 (아래 환경 표가 비어 있는 이유)
->
-> 즉 이 문서는 README 플랫폼 차이표 6개 행을 실물로 대조하는 원래 목적을 아직
-> 달성하지 못했다. v0.1.0은 이 상태를 알고 내보내는 것이며, 남은 항목은 0.1.x
-> 동안 채워 넣는다.
+> (이 중 iOS 항목 상당수는 2026-08-09에 해소되었다 — 바로 아래 절 참조.)
+
+---
+
+## 2026-08-09 2차 — 소비자 앱(10MM)을 통한 iOS 항목 해소
+
+10MM 앱은 v0.1.0을 npm에서 설치해 쓴다. 그 TestFlight 빌드 `2.0.5 (18)`로 실기기
+검증을 돌렸고, **이 문서의 iOS 항목 상당수가 실물로 확인됐다.** 10MM 위젯이
+이 라이브러리의 타이머 계약을 그대로 쓰고 Dynamic Island 네 구역 + compact +
+minimal을 모두 구현하므로, example 앱을 거치지 않아도 동일한 네이티브 경로가
+실행된다.
+
+항목별 기록: `10mm-client-app/docs/plans/2026-08-09-device-verification.md`
+
+**실물로 확인됨 — 위 미검증 목록에서 해소:**
+
+- ✅ Dynamic Island의 compact / expanded / minimal 세 표현
+- ✅ 카운트다운의 일시정지 → 재개 → 완료 전이
+- ✅ 프로세스 강제종료 후 `getActiveActivities()` 재연결 (중복 활동 없이 재사용)
+- ✅ 잠금화면 렌더링과 `Text(timerInterval:)` 기반 **JS 호출 없는** 초 단위 감소
+- ✅ Live Activities를 시스템 설정에서 끈 상태 → `startActivity`가 `E_DISABLED` reject
+- ✅ `dismissalPolicy: .immediate`로 End 시 즉시 사라짐
+
+**여전히 미검증:**
+
+- 모르는 `activityId`에 대한 플랫폼별 분기 (iOS `E_NOT_FOUND` vs Android 신규 알림 생성)
+- 잘못된 timer payload의 `E_INVALID_CONTENT` reject
+- iOS에서 `{ android: { foregroundService: true } }`가 no-op인지
+- **Android 전체** — 포그라운드 서비스(동시 1개 제한, 장시간 유지, Android 14
+  `dataSync`), `isSupported()`의 두 번째 게이트, 알림의 재시작 생존, timer 조용한 무시
+- README의 Widget Extension 지침만 보고 처음부터 셋업하는 경로
+- 검증에 쓴 기기·OS 버전 (10MM 회차에서도 기록되지 않았다)
+
+README 플랫폼 차이표 6개 행은 **iOS 쪽 동작만 확인됐고 Android 쪽이 비어 있어,
+"차이"를 대조한다는 원래 목적은 아직 미달성이다.** 남은 항목은 0.1.x 동안 채운다.
 
 ## 환경
 
@@ -222,19 +244,32 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
 > 그 전까지는 체크할 수 없는 항목이므로 미완료 상태로 남겨두고 Task 10 진행을
 > 막지 않는다. 배포 후 사람이 별도로 채운다.
 
+> **2026-08-09 갱신:** 이 절의 상당수는 새 bare 앱 대신 **실제 소비자인 10MM**으로
+> 충족됐다(10MM이 git SHA pin에서 npm으로 전환한 커밋 `c8d2465`). bare 앱보다
+> 약한 검증이 아니라 오히려 강한 쪽이다 — 실제 프로덕션 앱의 의존성 그래프
+> 안에서 resolve된 결과이기 때문이다.
+
 - [ ] **(배포 후)** 완전히 새로운 bare RN 앱을 생성
-- [ ] **(배포 후)** `npm install @woobottle/react-native-live-activity` (또는
+      — 하지 않음. 대신 아래 항목들을 기존 소비자 앱(10MM)에서 확인했다.
+- [x] **(배포 후)** `npm install @woobottle/react-native-live-activity` (또는
       `yarn add`)로 게시된 패키지를 설치 — 로컬 `file:` 참조가 아니라 실제
       npm 레지스트리에서
-- [ ] **(배포 후)** iOS: `cd ios && pod install` — pod 이름은
+      → 10MM `yarn.lock`이 레지스트리 tarball을 가리킨다. 별도로 빈 소비자에
+      설치해 CJS `require()`와 ESM `import` 양쪽 진입점도 확인했다.
+- [x] **(배포 후)** iOS: `cd ios && pod install` — pod 이름은
       `react-native-live-activity`(스코프 없음)로 정상 resolve 되는지 확인
+      → 10MM `Podfile.lock`에서 확인. `:path:`가 `node_modules/@woobottle/...`로
+      바뀌었지만 pod 이름은 그대로다(의도된 동작).
 - [ ] **(배포 후)** Android: 별도 설정 없이 오토링킹만으로 빌드 성공
       (Gradle 프로젝트 경로가 `:woobottle_react-native-live-activity`로
       잡히는지)
-- [ ] **(배포 후)** import 경로가 `@woobottle/react-native-live-activity`로
+      — 미확인. 10MM Android 빌드를 아직 돌리지 않았다.
+- [x] **(배포 후)** import 경로가 `@woobottle/react-native-live-activity`로
       정상 동작 (README·타입 선언 모두 이 이름 기준)
-- [ ] **(배포 후)** 최소한 하나의 lifecycle (start → update → end)이 실기기에서
+      → 10MM에서 타입체크·유닛테스트·iOS 릴리즈 빌드 모두 통과.
+- [x] **(배포 후)** 최소한 하나의 lifecycle (start → update → end)이 실기기에서
       동작
+      → 2026-08-09, 10MM TestFlight `2.0.5 (18)`로 확인.
 
 ## 발견 사항
 
