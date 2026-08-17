@@ -96,6 +96,14 @@ All timestamps are **epoch milliseconds**. When `state: 'paused'`, `pauseAt`
 is required and must satisfy `startAt <= pauseAt <= endAt`; violating either
 rejects with `E_INVALID_CONTENT`.
 
+> **Your widget has to draw the paused state itself.**
+> `Text(timerInterval:pauseTime:)` ignores `pauseTime` inside a Live Activity —
+> the label keeps counting down even though ActivityKit stores `state: 'paused'`
+> and `pauseAt` correctly (measured on iOS 17.4: `getActiveActivities()` reported
+> a stable `pauseAt` while the Dynamic Island kept ticking). Branch on
+> `timerState == "paused"` and render `endAt - pauseAt` as a plain string instead
+> of a self-updating one. See `LiveActivityStatusView` in the example widget.
+
 **This only renders on iOS.** The Android native module currently parses and
 uses only `title` / `subtitle` / `progress` — `content.timer` passes JSON
 validation (both platforms share the same JS types) but the Android module

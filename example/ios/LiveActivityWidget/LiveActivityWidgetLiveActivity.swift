@@ -104,10 +104,32 @@ private struct LiveActivityStatusView: View {
     return context.state.timerState == "completed"
   }
 
+  /// 일시정지된 남은 시간. 자동 갱신 텍스트가 아니라 고정 문자열로 그린다.
+  ///
+  /// `Text(timerInterval:pauseTime:)`은 Live Activity 안에서 `pauseTime`을 무시하고
+  /// 계속 카운트다운한다 (iOS 17.4 실측: ActivityKit은 `state: "paused"`와 `pauseAt`을
+  /// 정상적으로 들고 있는데도 Dynamic Island 표시는 계속 줄었다).
+  private var pausedRemaining: String? {
+    guard
+      context.state.timerState == "paused",
+      let pauseAt = context.state.timerPauseAt,
+      let endAt = context.state.timerEndAt
+    else {
+      return nil
+    }
+
+    let remaining = max(0, Int(endAt.timeIntervalSince(pauseAt)))
+    return String(format: "%d:%02d", remaining / 60, remaining % 60)
+  }
+
   var body: some View {
     Group {
       if isCompleted {
         Text(compact ? "달성!" : "10분 달성!")
+      } else if let pausedRemaining {
+        Text(pausedRemaining)
+          .monospacedDigit()
+          .accessibilityLabel("미션 타이머 일시정지됨")
       } else if
         let startAt = context.state.timerStartAt,
         let endAt = context.state.timerEndAt
