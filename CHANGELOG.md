@@ -5,6 +5,12 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Fixed
+- iOS example widget: a paused countdown kept ticking because
+  `Text(timerInterval:pauseTime:)` ignores `pauseTime` inside a Live Activity.
+  The example now draws the paused remaining time as static text, and the
+  README documents the constraint next to the timer contract.
+
 ## [0.1.0] - 2026-08-01
 
 First public release.
