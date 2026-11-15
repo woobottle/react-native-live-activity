@@ -238,6 +238,31 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
       사라지는 게 기대 동작이고, 이 평범한 케이스는 알림이 남는 게 기대
       동작 — 두 결과가 실제로 다른지 대조할 것.
 
+## Android 네이티브 카운트다운 (2026-11-15 추가, 미배포)
+
+> 근거: `docs/superpowers/specs/2026-11-15-android-countdown-design.md`. 파싱과
+> 표시 결정은 JVM 테스트로 고정돼 있지만 알람, Receiver, 알림 게시는 기기에서만
+> 확인할 수 있다. 위 "[문서화된 제약 확인] timer 조용히 무시" 항목은 이 기능으로
+> 대체됐다 — 이제 timer는 검증되고 그려진다.
+
+- [ ] `running` timer로 Start → 알림 헤더에서 카운트다운이 초 단위로 줄어든다 (JS 호출 없음)
+- [ ] `paused`로 update → `endAt - pauseAt`이 고정 텍스트로 보이고 줄지 않는다.
+      다시 `running`(새 `startAt`/`endAt`)으로 update → 카운트다운 재개
+- [ ] `completed`로 update → `00:00` 고정
+- [ ] 1분짜리 timer를 Start하고 **앱을 강제종료** → `endAt` 후 알림이 `00:00` 고정으로 바뀐다
+      (정확한 알람 권한 없음: 최대 약 10분 늦을 수 있음, 그동안 음수 표시는 정상)
+- [ ] 같은 조건에서 example 앱에 `USE_EXACT_ALARM`을 선언 → `endAt` 직후에 바로 바뀐다
+- [ ] timer 알림을 **스와이프로 지운 뒤** `endAt` 경과 → 알림이 다시 뜨지 않는다
+- [ ] timer로 Start → `endActivity` → `endAt` 경과 → 알림이 다시 뜨지 않는다
+- [ ] timer로 Start → timer **없는** content로 update → `endAt` 경과 → 알림이 옛 내용으로
+      덮어써지지 않는다 (알람이 취소됐는지)
+- [ ] `startAt`이 1분 뒤인 `running` → 전체 길이 고정 텍스트 → `startAt`에 카운트다운
+      시작 → `endAt`에 `00:00`
+- [ ] `{ android: { foregroundService: true } }` + timer → 카운트다운, `endAt`에 `00:00` 전환
+- [ ] 잘못된 timer(`state: 'bogus'`) → Start는 `E_INVALID_CONTENT`, update는 `E_INVALID_ARGUMENT`로
+      reject, 메시지는 iOS와 같은 `content.timer state is invalid`
+- [ ] (가능하면) Android 6(API 23) 기기/에뮬레이터 → 카운트다운 대신 종료 시각 표시
+
 ## [배포 후 전용] 게시된 패키지 설치 경로 검증
 
 > **이 항목은 v0.1.0이 npm에 게시된 뒤에만 수행 가능하다 (Task 10 이후).**

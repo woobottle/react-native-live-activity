@@ -2,7 +2,7 @@
 
 > React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.
 
-**Status:** v0.1.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity — though only iOS actually returns still-running activities after the app process restarts; Android returns an empty array in that case. The native countdown timer (`content.timer`) currently renders **on iOS only**; the Android native module doesn't read that field at all. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
+**Status:** v0.1.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity — though only iOS actually returns still-running activities after the app process restarts; Android returns an empty array in that case. The native countdown timer (`content.timer`) renders on both platforms without JS polling — the iOS widget via `Text(timerInterval:)`, the Android notification via its built-in chronometer (unreleased; see CHANGELOG). JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
 
 ---
 
@@ -64,10 +64,10 @@ const active = await LiveActivity.getActiveActivities()
 const mine = active.find(a => a.referenceId === 'order-42')
 ```
 
-### Native countdown timer (iOS only)
+### Native countdown timer
 
-Pass a `timer` and the **native widget draws the remaining time itself** on
-iOS — no need for JS to wake up every second and call `updateActivity`. Call
+Pass a `timer` and the **OS draws the remaining time itself** — the widget on
+iOS, the notification's chronometer on Android — no need for JS to wake up every second and call `updateActivity`. Call
 it once to start, and again only on pause/resume/completion.
 
 ```ts
@@ -94,7 +94,9 @@ await LiveActivity.updateActivity(activityId, {
 
 All timestamps are **epoch milliseconds**. When `state: 'paused'`, `pauseAt`
 is required and must satisfy `startAt <= pauseAt <= endAt`; violating either
-rejects with `E_INVALID_CONTENT`.
+rejects (`E_INVALID_CONTENT`; Android's `updateActivity` reports content
+errors as `E_INVALID_ARGUMENT`). Both platforms apply the same rules with the
+same messages.
 
 > **Your widget has to draw the paused state itself.**
 > `Text(timerInterval:pauseTime:)` ignores `pauseTime` inside a Live Activity —
@@ -104,14 +106,36 @@ rejects with `E_INVALID_CONTENT`.
 > `timerState == "paused"` and render `endAt - pauseAt` as a plain string instead
 > of a self-updating one. See `LiveActivityStatusView` in the example widget.
 
-**This only renders on iOS.** The Android native module currently parses and
-uses only `title` / `subtitle` / `progress` — `content.timer` passes JSON
-validation (both platforms share the same JS types) but the Android module
-never reads it, so it has **zero effect** on the Android notification. If an
-Android build needs a visible countdown today, the app has to keep computing
-it in JS and pushing it through `progress`/`subtitle` on its own polling
-interval — the "no JS polling" benefit above is iOS-only. See **Platform
-behavior differences** below.
+**On Android the library draws it** in the standard notification template —
+there is no widget to write:
+
+| `timer` | Notification header |
+|---|---|
+| `running`, before `startAt` | the full duration as fixed text, switching to the countdown at `startAt` |
+| `running` | a live countdown to `endAt` (Android 7+; Android 6 shows the end time instead) |
+| `running`, past `endAt` | `00:00`, fixed |
+| `paused` | `endAt - pauseAt` as fixed text |
+| `completed` | `00:00`, fixed |
+
+Fixed text uses the chronometer's own format (`mm:ss`, `h:mm:ss` from an hour)
+so the switch from countdown to fixed text doesn't jump. The chronometer would
+keep counting into negative numbers past `endAt`, so the library sets an alarm
+that redraws the notification at `00:00` — even with the app process dead. It
+never redraws a notification that is no longer showing.
+
+That alarm is exact only if your app holds an exact-alarm permission. The
+library doesn't declare one (it needs Play policy justification); without it
+the switch to `00:00` can land **up to ~10 minutes late** (later while the
+device dozes with the screen off — turning the screen on lets it run), and the
+chronometer shows negative time until then. Timer apps that need the exact
+moment can declare it themselves:
+
+```xml
+<!-- Timer/alarm apps (Play policy applies), granted at install: -->
+<uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+<!-- or, user-grantable in Settings on Android 12+: -->
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+```
 
 ### Types
 
@@ -164,25 +188,21 @@ papered over, per PRD §6 ("document platform differences honestly").
 | `endActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | resolves silently (cancelling a non-existent notification is a no-op) |
 | `getActiveActivities()` after the app process restarts | ActivityKit owns activity state independently of the app process, so it **returns the still-running activities** | the snapshot lives only in an in-memory map inside the module, so it **returns an empty array**. What happens to the notification itself differs by how it was started: a plain notification (`NotificationManager.notify`) is posted independently of the process and typically survives; a **foreground-service** activity is more likely to disappear — if the OS restarts the service after the process dies, it's restarted with a `null` intent, and the service's `onStartCommand` calls `stopSelf()` immediately in that case rather than restoring anything |
 | `isSupported()` / `getPlatformCapabilities()` | `ActivityAuthorizationInfo().areActivitiesEnabled` (iOS 16.1+; `false` below that) | whether `POST_NOTIFICATIONS` is granted (Android 13+) **and** the system notification toggle is on (Android 7+) — not a single permission check |
-| `content.timer` (countdown rendering) | parsed, validated, and rendered live by the widget via `Text(timerInterval:)` | **not parsed at all.** The field is silently ignored; it has no effect on the notification. It is also echoed back unvalidated through `getActiveActivities()` — see note below. Rejecting bad `progress` shapes is otherwise consistent across platforms now — see note below |
+| `content.timer` (countdown rendering) | validated, then rendered by **your widget** via `Text(timerInterval:)`; it stops at zero at `endAt` | validated with the same rules, then rendered by **the library** in the standard notification template (chronometer countdown, fixed text otherwise). Without an exact-alarm permission the switch to `00:00` at `endAt` can be **up to ~10 minutes late**, showing negative time meanwhile. Android 6 shows the end time instead of a countdown |
 | `{ android: { foregroundService: true } }` | no-op | hosted via a foreground service. v1 supports **one at a time** — starting a second foreground activity replaces the first's notification |
 
 Note on input validation: booleans and non-finite numbers (`NaN`/`Infinity`)
 for `progress` are rejected on both platforms now — iOS via an explicit
 `CFGetTypeID` guard against CFBoolean-backed `NSNumber`, Android via
 `ReadableType.Number` plus a `0.0..1.0` range check that also happens to
-reject `NaN`. This used to be an iOS-only fix; it no longer is. (Android
-doesn't need an equivalent guard for `timer` because it doesn't read that
-field at all.)
+reject `NaN`. The same holds for every `timer` field on both platforms.
 
-Note on `getActiveActivities()` and `timer` on Android: the Android module
-stores the raw JS `content` payload as-is and returns it verbatim from
-`getActiveActivities()`, with no validation applied at either end. That means
-a call like `startActivity({ title: 'x', timer: { startAt: 'abc', state:
-'bogus' } })` succeeds on Android, and a later
-`(await getActiveActivities())[0].content.timer` can come back with a
-`state` outside `LiveActivityTimerState` and a `startAt` that isn't even a
-`number`. Consumers must not trust `content.timer` from an Android snapshot.
+Note on `getActiveActivities()` and `timer`: both platforms return the last
+`content` you sent. When `endAt` passes, the display freezes at zero but the
+returned `timer.state` stays `'running'` — on iOS because ActivityKit content
+doesn't change at the stale date, on Android because the alarm only redraws
+the notification. Compare `endAt` with the current time if you need to know
+whether a running timer has finished.
 
 Apps that need to recover after an Android restart should keep their own
 activity id alongside `referenceId` (e.g. in AsyncStorage) and, on resume,
@@ -267,10 +287,10 @@ TECH-PLAN.md            Architecture, API shape, phased build plan
 - [x] Android ongoing-notification start/update/end
 - [x] iOS Widget Extension example (Lock Screen + Dynamic Island)
 - [x] Android foreground-service opt-in
-- [x] iOS native countdown timer (Android does not read `content.timer` — see the table above)
+- [x] iOS native countdown timer
 - [x] `referenceId` + `getActiveActivities` reconnect (iOS: survives a process restart; Android: resets to empty — see the table above)
 - [x] JS / Swift / Kotlin unit tests + CI
-- [ ] Android native countdown timer
+- [x] Android native countdown timer (unreleased)
 - [ ] Real-device (iOS 16.1+ / Android 13+) E2E verification
 - [ ] Push-based updates (ActivityKit push token)
 - [ ] Expo config plugin
