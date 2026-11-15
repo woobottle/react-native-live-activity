@@ -32,7 +32,9 @@ internal object LiveActivityTimerScheduler {
     val subtitle: String?,
     val progress: Int?,
     val timer: ParsedTimer,
-    val foreground: Boolean
+    val foreground: Boolean,
+    /** 이 알람을 건 게시의 [LiveActivityTimerToken]. */
+    val token: String
   )
 
   /** [presentation]에 다음 전환이 있으면 예약하고, 없으면 기존 알람을 취소한다. */
@@ -80,7 +82,8 @@ internal object LiveActivityTimerScheduler {
     val activityId = intent.getStringExtra(EXTRA_ACTIVITY_ID)
     val title = intent.getStringExtra(EXTRA_TITLE)
     val timer = LiveActivityTimerExtras.read(intent)
-    if (activityId.isNullOrBlank() || title.isNullOrBlank() || timer == null) {
+    val token = intent.getStringExtra(LiveActivityTimerToken.EXTRA)
+    if (activityId.isNullOrBlank() || title.isNullOrBlank() || timer == null || token == null) {
       return null
     }
     val progress = intent.getIntExtra(EXTRA_PROGRESS, -1).takeIf { it >= 0 }
@@ -90,7 +93,8 @@ internal object LiveActivityTimerScheduler {
       subtitle = intent.getStringExtra(EXTRA_SUBTITLE),
       progress = progress,
       timer = timer,
-      foreground = intent.getBooleanExtra(EXTRA_FOREGROUND, false)
+      foreground = intent.getBooleanExtra(EXTRA_FOREGROUND, false),
+      token = token
     )
   }
 
@@ -104,6 +108,7 @@ internal object LiveActivityTimerScheduler {
       putExtra(EXTRA_SUBTITLE, payload.subtitle)
       putExtra(EXTRA_PROGRESS, payload.progress ?: -1)
       putExtra(EXTRA_FOREGROUND, payload.foreground)
+      putExtra(LiveActivityTimerToken.EXTRA, payload.token)
       LiveActivityTimerExtras.put(this, payload.timer)
     }
 

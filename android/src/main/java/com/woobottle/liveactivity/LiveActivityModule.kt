@@ -146,8 +146,9 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     val timer = content.timer?.let {
       LiveActivityTimerPresentation.present(it, System.currentTimeMillis(), Build.VERSION.SDK_INT)
     }
+    val token = content.timer?.let { LiveActivityTimerToken.next() }
     val notification = LiveActivityNotifications.build(
-      context, content.title, content.subtitle, content.progress, timer?.display
+      context, content.title, content.subtitle, content.progress, timer?.display, token
     )
     LiveActivityNotifications.notificationManager(context).notify(
       LiveActivityNotifications.tag(activityId),
@@ -156,10 +157,12 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     )
 
     // 알림을 게시한 쪽이 전환 알람도 정한다 (포그라운드 경로는 서비스가 한다).
-    val payload = content.timer?.let {
+    val payload = if (content.timer != null && token != null) {
       LiveActivityTimerScheduler.Payload(
-        activityId, content.title, content.subtitle, content.progress, it, foreground = false
+        activityId, content.title, content.subtitle, content.progress, content.timer, foreground = false, token
       )
+    } else {
+      null
     }
     LiveActivityTimerScheduler.sync(context, payload, activityId, timer)
   }

@@ -49,12 +49,15 @@ class LiveActivityForegroundService : Service() {
         }
 
         LiveActivityNotifications.ensureChannel(this)
+        val token = parsedTimer?.let { LiveActivityTimerToken.next() }
         val notification =
-          LiveActivityNotifications.build(this, title, subtitle, progress, timer?.display)
+          LiveActivityNotifications.build(this, title, subtitle, progress, timer?.display, token)
         startInForeground(LiveActivityNotifications.id(activityId), notification)
 
-        val payload = parsedTimer?.let {
-          LiveActivityTimerScheduler.Payload(activityId, title, subtitle, progress, it, foreground = true)
+        val payload = if (parsedTimer != null && token != null) {
+          LiveActivityTimerScheduler.Payload(activityId, title, subtitle, progress, parsedTimer, foreground = true, token)
+        } else {
+          null
         }
         LiveActivityTimerScheduler.sync(this, payload, activityId, timer)
         return START_STICKY
