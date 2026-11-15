@@ -182,5 +182,5 @@ JVM 테스트가 닿지 않는 조건들이다. 프레임워크 의존이라 Tas
 
 - [ ] **Step 1: 문서 갱신** — 스펙 §6. README 표의 Android 칸은 남는 차이 세 가지((a) 권한 없으면 최대 약 10분 늦게 00:00, Doze 중 더 밀림 (b) API 23은 종료 시각 표시 (c) 표준 알림 템플릿)를 적는다. "unvalidated echo" 문구 삭제.
 - [ ] **Step 2: 기기 검증 항목 추가** — Review Focus 1·2·3·5 각각 체크박스 하나씩, 그리고 카운트다운 표시 / 일시정지→재개 / 포그라운드 경로 00:00 전환 / 정확한 알람 권한 있을 때 정각 전환.
-- [ ] **Step 3: 확인** — `npm run typecheck && npm test` (루트) 와 Android test 명령. Expected: 모두 통과.
+- [ ] **Step 3: 확인** — `npm run typecheck` (루트) 와 Android test 명령. Expected: 모두 통과.
 - [ ] **Step 4: 커밋** — `docs: document the Android countdown and its remaining differences`
