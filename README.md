@@ -125,10 +125,12 @@ never redraws a notification that is no longer showing.
 
 That alarm is exact only if your app holds an exact-alarm permission. The
 library doesn't declare one (it needs Play policy justification); without it
-the switch to `00:00` can land **up to ~10 minutes late** (later while the
-device dozes with the screen off — turning the screen on lets it run), and the
-chronometer shows negative time until then. Timer apps that need the exact
-moment can declare it themselves:
+the switch to `00:00` — and, for a timer that hasn't started yet, the switch
+from fixed text to the countdown at `startAt` — can land **up to ~10 minutes
+late** (later while the device dozes with the screen off — turning the screen
+on lets it run). Until then the chronometer shows negative time (or, before
+`startAt`, the full duration). Timer apps that need the exact moment can
+declare it themselves:
 
 ```xml
 <!-- Timer/alarm apps (Play policy applies), granted at install: -->

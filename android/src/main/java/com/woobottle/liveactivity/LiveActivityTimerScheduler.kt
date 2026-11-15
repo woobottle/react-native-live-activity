@@ -69,8 +69,14 @@ internal object LiveActivityTimerScheduler {
 
   fun cancel(context: Context, activityId: String) {
     try {
+      // 걸린 알람이 없으면 새로 만들지 않는다 (null).
+      val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        LiveActivityNotifications.id(activityId),
+        baseIntent(context),
+        PendingIntent.FLAG_NO_CREATE or immutableFlag()
+      ) ?: return
       val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-      val pendingIntent = pendingIntent(context, activityId, baseIntent(context))
       alarmManager.cancel(pendingIntent)
       pendingIntent.cancel()
     } catch (error: Exception) {
