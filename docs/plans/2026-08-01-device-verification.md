@@ -249,8 +249,13 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
 - [ ] `paused`로 update → `endAt - pauseAt`이 고정 텍스트로 보이고 줄지 않는다.
       다시 `running`(새 `startAt`/`endAt`)으로 update → 카운트다운 재개
 - [ ] `completed`로 update → `00:00` 고정
-- [ ] 1분짜리 timer를 Start하고 **앱을 강제종료** → `endAt` 후 알림이 `00:00` 고정으로 바뀐다
-      (정확한 알람 권한 없음: 최대 약 10분 늦을 수 있음, 그동안 음수 표시는 정상)
+- [ ] 1분짜리 timer를 Start하고 **앱 프로세스만 죽인다** → `endAt` 후 알림이 `00:00` 고정으로 바뀐다
+      (정확한 알람 권한 없음: 최대 약 10분 늦을 수 있음, 그동안 음수 표시는 정상).
+      프로세스 죽이는 법: 앱을 백그라운드로 보낸 뒤 `adb shell am kill <패키지명>`, 또는
+      Pixel 같은 순정 기기에서 최근 앱 목록에서 스와이프.
+      **설정 → 강제 중지는 쓰지 말 것** — Android가 그 앱의 알람과 알림을 모두 지우므로
+      이 항목을 확인할 수 없다(알림이 사라지는 게 정상). Xiaomi/Huawei 등 일부 제조사의
+      최근 앱 스와이프도 강제 중지처럼 동작한다.
 - [ ] 같은 조건에서 example 앱에 `USE_EXACT_ALARM`을 선언 → `endAt` 직후에 바로 바뀐다
 - [ ] timer 알림을 **스와이프로 지운 뒤** `endAt` 경과 → 알림이 다시 뜨지 않는다
 - [ ] timer로 Start → `endActivity` → `endAt` 경과 → 알림이 다시 뜨지 않는다
