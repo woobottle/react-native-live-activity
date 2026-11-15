@@ -48,12 +48,14 @@ internal object LiveActivityNotifications {
 
   /**
    * @param progress already normalized to 0..[MAX_PROGRESS], or null for none.
+   * @param timer what to show in the timer slot (header), or null for none.
    */
   fun build(
     context: Context,
     title: String,
     subtitle: String?,
-    progress: Int?
+    progress: Int?,
+    timer: TimerDisplay? = null
   ): Notification {
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
       ?: Intent().setPackage(context.packageName)
@@ -89,6 +91,21 @@ internal object LiveActivityNotifications {
 
     if (progress != null) {
       builder.setProgress(MAX_PROGRESS, progress, false)
+    }
+
+    when (timer) {
+      is TimerDisplay.Countdown -> {
+        builder
+          .setShowWhen(true)
+          .setWhen(timer.untilMs)
+          .setUsesChronometer(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          builder.setChronometerCountDown(true)
+        }
+      }
+      is TimerDisplay.Fixed -> builder.setSubText(timer.text)
+      is TimerDisplay.EndsAt -> builder.setShowWhen(true).setWhen(timer.atMs)
+      null -> Unit
     }
 
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

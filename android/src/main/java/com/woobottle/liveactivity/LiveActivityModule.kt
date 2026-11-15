@@ -62,7 +62,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
       if (isForegroundRequested(options)) {
         LiveActivityForegroundService.start(
-          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
         foregroundActivityIds.add(activityId)
       } else {
@@ -94,7 +94,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
       if (foregroundActivityIds.contains(activityId)) {
         LiveActivityForegroundService.start(
-          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
       } else {
         showNotification(activityId, parsed)
@@ -141,8 +141,12 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     requireNotificationPermission()
     LiveActivityNotifications.ensureChannel(context)
 
-    val notification =
-      LiveActivityNotifications.build(context, content.title, content.subtitle, content.progress)
+    val timer = content.timer?.let {
+      LiveActivityTimerPresentation.present(it, System.currentTimeMillis(), Build.VERSION.SDK_INT)
+    }
+    val notification = LiveActivityNotifications.build(
+      context, content.title, content.subtitle, content.progress, timer?.display
+    )
     LiveActivityNotifications.notificationManager(context).notify(
       LiveActivityNotifications.tag(activityId),
       LiveActivityNotifications.id(activityId),
