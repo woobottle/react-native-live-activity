@@ -245,20 +245,23 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
 > 확인할 수 있다. 위 "[문서화된 제약 확인] timer 조용히 무시" 항목은 이 기능으로
 > 대체됐다 — 이제 timer는 검증되고 그려진다.
 
-- [ ] `running` timer로 Start → 알림 헤더에서 카운트다운이 초 단위로 줄어든다 (JS 호출 없음)
-- [ ] `paused`로 update → `endAt - pauseAt`이 고정 텍스트로 보이고 줄지 않는다.
+- [x] `running` timer로 Start → 알림 헤더에서 카운트다운이 초 단위로 줄어든다 (JS 호출 없음) — ✅ 2026-11-16 에뮬레이터(API 36)
+- [x] `paused`로 update → `endAt - pauseAt`이 고정 텍스트로 보이고 줄지 않는다. — ✅ 2026-11-16 에뮬레이터(API 36) (`00:49` 고정, 알람 취소 확인)
       다시 `running`(새 `startAt`/`endAt`)으로 update → 카운트다운 재개
 - [ ] `completed`로 update → `00:00` 고정
-- [ ] 1분짜리 timer를 Start하고 **앱 프로세스만 죽인다** → `endAt` 후 알림이 `00:00` 고정으로 바뀐다
+- [x] 1분짜리 timer를 Start하고 **앱 프로세스만 죽인다** → `endAt` 후 알림이 `00:00` 고정으로 바뀐다
       (정확한 알람 권한 없음: 최대 약 10분 늦을 수 있음, 그동안 음수 표시는 정상).
       프로세스 죽이는 법: 앱을 백그라운드로 보낸 뒤 `adb shell am kill <패키지명>`, 또는
       Pixel 같은 순정 기기에서 최근 앱 목록에서 스와이프.
       **설정 → 강제 중지는 쓰지 말 것** — Android가 그 앱의 알람과 알림을 모두 지우므로
       이 항목을 확인할 수 없다(알림이 사라지는 게 정상). Xiaomi/Huawei 등 일부 제조사의
       최근 앱 스와이프도 강제 중지처럼 동작한다.
+      ✅ 2026-11-16 에뮬레이터(API 36), 정확한 알람 권한 없음: `setWindow`(+10분 창)로 걸렸고
+      프로세스가 죽은 상태에서 `endAt` 45초 뒤 `00:00`으로 다시 그려짐. 프로세스는 `am kill`이
+      통하지 않아(캐시 상태 아님) 디버그 빌드에서 `adb shell run-as <패키지> kill -9 <pid>`로 죽였다.
 - [ ] 같은 조건에서 example 앱에 `USE_EXACT_ALARM`을 선언 → `endAt` 직후에 바로 바뀐다
 - [ ] timer 알림을 **스와이프로 지운 뒤** `endAt` 경과 → 알림이 다시 뜨지 않는다
-- [ ] timer로 Start → `endActivity` → `endAt` 경과 → 알림이 다시 뜨지 않는다
+- [x] timer로 Start → `endActivity` → `endAt` 경과 → 알림이 다시 뜨지 않는다 — ✅ 2026-11-16 에뮬레이터(API 36) (알람 `alarm_cancelled` 확인)
 - [ ] timer로 Start → timer **없는** content로 update → `endAt` 경과 → 알림이 옛 내용으로
       덮어써지지 않는다 (알람이 취소됐는지)
 - [ ] `startAt`이 1분 뒤인 `running` → 전체 길이 고정 텍스트 → `startAt`에 카운트다운
