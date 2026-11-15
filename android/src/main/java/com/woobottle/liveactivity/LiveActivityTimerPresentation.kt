@@ -28,7 +28,6 @@ data class TimerPresentation(val display: TimerDisplay, val nextTransitionAtMs: 
 object LiveActivityTimerPresentation {
 
   private const val CHRONOMETER_COUNTDOWN_MIN_SDK = 24 // Build.VERSION_CODES.N
-  private const val ZERO = "00:00"
 
   fun present(timer: ParsedTimer, nowMs: Long, sdkInt: Int): TimerPresentation =
     when (timer.state) {
@@ -37,7 +36,7 @@ object LiveActivityTimerPresentation {
         val pauseAt = timer.pauseAtMs ?: timer.endAtMs
         TimerPresentation(TimerDisplay.Fixed(format(timer.endAtMs - pauseAt)), null)
       }
-      TimerState.COMPLETED -> TimerPresentation(TimerDisplay.Fixed(ZERO), null)
+      TimerState.COMPLETED -> TimerPresentation(TimerDisplay.Fixed(format(0)), null)
       TimerState.RUNNING -> when {
         nowMs < timer.startAtMs -> TimerPresentation(
           TimerDisplay.Fixed(format(timer.endAtMs - timer.startAtMs)),
@@ -51,7 +50,7 @@ object LiveActivityTimerPresentation {
           },
           timer.endAtMs
         )
-        else -> TimerPresentation(TimerDisplay.Fixed(ZERO), null)
+        else -> TimerPresentation(TimerDisplay.Fixed(format(0)), null)
       }
     }
 

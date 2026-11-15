@@ -5,7 +5,9 @@ import com.woobottle.liveactivity.LiveActivityContentParser.TimerState
 import com.woobottle.liveactivity.LiveActivityTimerPresentation.format
 import com.woobottle.liveactivity.LiveActivityTimerPresentation.present
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Test
+import java.util.Locale
 
 class LiveActivityTimerPresentationTest {
 
@@ -28,6 +30,28 @@ class LiveActivityTimerPresentationTest {
       TimerPresentation(TimerDisplay.Countdown(600_000), 600_000L),
       present(timer(TimerState.RUNNING), nowMs = 1_000, sdkInt = 34)
     )
+  }
+
+  @Test
+  fun `running starts counting down exactly at startAt`() {
+    assertEquals(
+      TimerPresentation(TimerDisplay.Countdown(600_000), 600_000L),
+      present(timer(TimerState.RUNNING), nowMs = 0, sdkInt = 34)
+    )
+  }
+
+  @Test
+  fun `zero uses the same locale digits as every other fixed text`() {
+    val original = Locale.getDefault()
+    try {
+      Locale.setDefault(Locale.forLanguageTag("ar-EG"))
+      val zero = format(0)
+      assumeTrue("JDK has no native digits for ar-EG", zero != "00:00")
+      assertEquals(TimerDisplay.Fixed(zero), present(timer(TimerState.COMPLETED), nowMs = 1_000, sdkInt = 34).display)
+      assertEquals(TimerDisplay.Fixed(zero), present(timer(TimerState.RUNNING), nowMs = 600_000, sdkInt = 34).display)
+    } finally {
+      Locale.setDefault(original)
+    }
   }
 
   @Test
