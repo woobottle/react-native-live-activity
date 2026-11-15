@@ -116,6 +116,8 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   fun endActivity(activityId: String, promise: Promise) {
     try {
       requireValidActivityId(activityId)
+      // 알림을 내리기 전에 알람부터 취소한다.
+      LiveActivityTimerScheduler.cancel(context, activityId)
       if (foregroundActivityIds.remove(activityId)) {
         LiveActivityForegroundService.stop(context)
       } else {
@@ -152,6 +154,14 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
       LiveActivityNotifications.id(activityId),
       notification
     )
+
+    // 알림을 게시한 쪽이 전환 알람도 정한다 (포그라운드 경로는 서비스가 한다).
+    val payload = content.timer?.let {
+      LiveActivityTimerScheduler.Payload(
+        activityId, content.title, content.subtitle, content.progress, it, foreground = false
+      )
+    }
+    LiveActivityTimerScheduler.sync(context, payload, activityId, timer)
   }
 
   private data class ActivitySnapshot(

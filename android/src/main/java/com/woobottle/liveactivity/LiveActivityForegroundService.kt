@@ -43,7 +43,8 @@ class LiveActivityForegroundService : Service() {
           }
 
         // 서비스가 실제로 실행되는 시점 기준으로 표시를 다시 계산한다.
-        val timer = LiveActivityTimerExtras.read(intent)?.let {
+        val parsedTimer = LiveActivityTimerExtras.read(intent)
+        val timer = parsedTimer?.let {
           LiveActivityTimerPresentation.present(it, System.currentTimeMillis(), Build.VERSION.SDK_INT)
         }
 
@@ -51,6 +52,11 @@ class LiveActivityForegroundService : Service() {
         val notification =
           LiveActivityNotifications.build(this, title, subtitle, progress, timer?.display)
         startInForeground(LiveActivityNotifications.id(activityId), notification)
+
+        val payload = parsedTimer?.let {
+          LiveActivityTimerScheduler.Payload(activityId, title, subtitle, progress, it, foreground = true)
+        }
+        LiveActivityTimerScheduler.sync(this, payload, activityId, timer)
         return START_STICKY
       }
       else -> {
