@@ -16,7 +16,10 @@ export type LiveActivityContent = {
   title: string
   subtitle?: string
   progress?: number
-  /** Rendered on iOS only in this version; ignored on Android (not parsed, not validated). */
+  /**
+   * Countdown drawn by the OS without JS polling: by your widget on iOS, by the
+   * library's notification chronometer on Android. Validated identically on both.
+   */
   timer?: LiveActivityTimer
 }
 

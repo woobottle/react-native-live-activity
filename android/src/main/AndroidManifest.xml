@@ -9,5 +9,9 @@
       android:name=".LiveActivityForegroundService"
       android:exported="false"
       android:foregroundServiceType="dataSync" />
+    <!-- Redraws the countdown when it crosses startAt / endAt; see LiveActivityTimerScheduler. -->
+    <receiver
+      android:name=".LiveActivityTimerReceiver"
+      android:exported="false" />
   </application>
 </manifest>

@@ -62,7 +62,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
       if (isForegroundRequested(options)) {
         LiveActivityForegroundService.start(
-          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
         foregroundActivityIds.add(activityId)
       } else {
@@ -94,7 +94,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
 
       if (foregroundActivityIds.contains(activityId)) {
         LiveActivityForegroundService.start(
-          context, activityId, parsed.title, parsed.subtitle, parsed.progress
+          context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
       } else {
         showNotification(activityId, parsed)
@@ -116,6 +116,8 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   fun endActivity(activityId: String, promise: Promise) {
     try {
       requireValidActivityId(activityId)
+      // 알림을 내리기 전에 알람부터 취소한다.
+      LiveActivityTimerScheduler.cancel(context, activityId)
       if (foregroundActivityIds.remove(activityId)) {
         LiveActivityForegroundService.stop(context)
       } else {
@@ -141,13 +143,28 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     requireNotificationPermission()
     LiveActivityNotifications.ensureChannel(context)
 
-    val notification =
-      LiveActivityNotifications.build(context, content.title, content.subtitle, content.progress)
+    val timer = content.timer?.let {
+      LiveActivityTimerPresentation.present(it, System.currentTimeMillis(), Build.VERSION.SDK_INT)
+    }
+    val token = content.timer?.let { LiveActivityTimerToken.next() }
+    val notification = LiveActivityNotifications.build(
+      context, content.title, content.subtitle, content.progress, timer?.display, token
+    )
     LiveActivityNotifications.notificationManager(context).notify(
       LiveActivityNotifications.tag(activityId),
       LiveActivityNotifications.id(activityId),
       notification
     )
+
+    // 알림을 게시한 쪽이 전환 알람도 정한다 (포그라운드 경로는 서비스가 한다).
+    val payload = if (content.timer != null && token != null) {
+      LiveActivityTimerScheduler.Payload(
+        activityId, content.title, content.subtitle, content.progress, content.timer, foreground = false, token
+      )
+    } else {
+      null
+    }
+    LiveActivityTimerScheduler.sync(context, payload, activityId, timer)
   }
 
   private data class ActivitySnapshot(

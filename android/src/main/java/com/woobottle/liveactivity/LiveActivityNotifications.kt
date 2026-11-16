@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.os.Build
 
 /**
@@ -48,12 +49,16 @@ internal object LiveActivityNotifications {
 
   /**
    * @param progress already normalized to 0..[MAX_PROGRESS], or null for none.
+   * @param timer what to show in the timer slot (header), or null for none.
+   * @param token [LiveActivityTimerToken] stored in the notification's extras, or null.
    */
   fun build(
     context: Context,
     title: String,
     subtitle: String?,
-    progress: Int?
+    progress: Int?,
+    timer: TimerDisplay? = null,
+    token: String? = null
   ): Notification {
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
       ?: Intent().setPackage(context.packageName)
@@ -89,6 +94,25 @@ internal object LiveActivityNotifications {
 
     if (progress != null) {
       builder.setProgress(MAX_PROGRESS, progress, false)
+    }
+
+    when (timer) {
+      is TimerDisplay.Countdown -> {
+        builder
+          .setShowWhen(true)
+          .setWhen(timer.untilMs)
+          .setUsesChronometer(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+          builder.setChronometerCountDown(true)
+        }
+      }
+      is TimerDisplay.Fixed -> builder.setSubText(timer.text)
+      is TimerDisplay.EndsAt -> builder.setShowWhen(true).setWhen(timer.atMs)
+      null -> Unit
+    }
+
+    if (token != null) {
+      builder.addExtras(Bundle().apply { putString(LiveActivityTimerToken.EXTRA, token) })
     }
 
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

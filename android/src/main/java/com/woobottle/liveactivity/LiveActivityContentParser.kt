@@ -19,17 +19,83 @@ object LiveActivityContentParser {
   /** 알림 ProgressBar의 최대값. [LiveActivityNotifications.MAX_PROGRESS]와 같은 값이다. */
   const val MAX_PROGRESS = 100
 
+  enum class TimerState(val jsValue: String) {
+    RUNNING("running"),
+    PAUSED("paused"),
+    COMPLETED("completed");
+
+    companion object {
+      fun fromJs(value: String?): TimerState? = values().firstOrNull { it.jsValue == value }
+    }
+  }
+
+  /** 검증을 통과한 timer. 시각은 epoch ms (소수 ms는 버림). */
+  data class ParsedTimer(
+    val startAtMs: Long,
+    val endAtMs: Long,
+    val pauseAtMs: Long?,
+    val state: TimerState
+  )
+
   data class ParsedContent(
     val title: String,
     val subtitle: String?,
-    val progress: Int?
+    val progress: Int?,
+    val timer: ParsedTimer? = null
   )
 
   fun parse(content: ReadableMap): ParsedContent = ParsedContent(
     title = content.requiredString("title"),
     subtitle = content.optionalString("subtitle"),
-    progress = content.optionalProgress("progress")
+    progress = content.optionalProgress("progress"),
+    timer = content.optionalTimer("timer")
   )
+
+  // 메시지와 검증 순서는 ios/LiveActivityContentParser.swift의 parseTimer와 동일해야 한다.
+  private const val TIMER_NOT_OBJECT = "content.timer must be an object"
+  private const val TIMER_BOUNDS_INVALID = "content.timer startAt and endAt must be finite numbers"
+  private const val TIMER_END_BEFORE_START = "content.timer endAt must be after startAt"
+  private const val TIMER_STATE_INVALID = "content.timer state is invalid"
+  private const val TIMER_PAUSE_MISSING = "content.timer pauseAt is required when paused"
+  private const val TIMER_PAUSE_OUT_OF_RANGE = "content.timer pauseAt must be within the timer interval"
+
+  private fun ReadableMap.optionalTimer(key: String): ParsedTimer? {
+    if (!hasKey(key) || isNull(key)) {
+      return null
+    }
+    require(getType(key) == ReadableType.Map) { TIMER_NOT_OBJECT }
+    val timer = getMap(key) ?: throw IllegalArgumentException(TIMER_NOT_OBJECT)
+
+    // 비교는 전부 원본 Double로 한다. 먼저 Long으로 내리면 iOS가 거부하는
+    // 입력(예: startAt=100.7, endAt=100.3)을 통과시키게 된다.
+    val startAt = timer.finiteNumber("startAt") ?: throw IllegalArgumentException(TIMER_BOUNDS_INVALID)
+    val endAt = timer.finiteNumber("endAt") ?: throw IllegalArgumentException(TIMER_BOUNDS_INVALID)
+    require(endAt >= startAt) { TIMER_END_BEFORE_START }
+
+    val state = if (timer.hasKey("state") && !timer.isNull("state") && timer.getType("state") == ReadableType.String) {
+      TimerState.fromJs(timer.getString("state"))
+    } else {
+      null
+    } ?: throw IllegalArgumentException(TIMER_STATE_INVALID)
+
+    val pauseAt = if (timer.hasKey("pauseAt") && !timer.isNull("pauseAt")) {
+      timer.finiteNumber("pauseAt") ?: throw IllegalArgumentException(TIMER_BOUNDS_INVALID)
+    } else {
+      null
+    }
+    require(state != TimerState.PAUSED || pauseAt != null) { TIMER_PAUSE_MISSING }
+    require(pauseAt == null || pauseAt in startAt..endAt) { TIMER_PAUSE_OUT_OF_RANGE }
+
+    return ParsedTimer(startAt.toLong(), endAt.toLong(), pauseAt?.toLong(), state)
+  }
+
+  /** Number 타입이고 유한한 값만. Boolean은 ReadableType.Boolean이라 여기서 걸러진다. */
+  private fun ReadableMap.finiteNumber(key: String): Double? {
+    if (!hasKey(key) || isNull(key) || getType(key) != ReadableType.Number) {
+      return null
+    }
+    return getDouble(key).takeIf { it.isFinite() }
+  }
 
   private fun ReadableMap.requiredString(key: String): String {
     require(hasKey(key) && !isNull(key) && getType(key) == ReadableType.String) {

@@ -5,6 +5,21 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Added
+- Android: native countdown for `content.timer`. The notification's chronometer
+  counts down to `endAt` without JS polling; `paused` / `completed` show fixed
+  text, and an alarm redraws the notification at `00:00` when `endAt` passes,
+  even with the app process dead. Exact only when the app holds an exact-alarm
+  permission (not declared by the library); otherwise up to ~10 minutes late.
+- Android: `content.timer` is now validated with the same rules and messages as
+  iOS, so a malformed timer is rejected instead of silently accepted.
+
+### Fixed
+- iOS example widget: a paused countdown kept ticking because
+  `Text(timerInterval:pauseTime:)` ignores `pauseTime` inside a Live Activity.
+  The example now draws the paused remaining time as static text, and the
+  README documents the constraint next to the timer contract.
+
 ## [0.1.0] - 2026-08-01
 
 First public release.
