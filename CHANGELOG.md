@@ -5,6 +5,8 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-17
+
 ### Added
 - Android: native countdown for `content.timer`. The notification's chronometer
   counts down to `endAt` without JS polling; `paused` / `completed` show fixed
@@ -19,6 +21,14 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
   `Text(timerInterval:pauseTime:)` ignores `pauseTime` inside a Live Activity.
   The example now draws the paused remaining time as static text, and the
   README documents the constraint next to the timer contract.
+
+### Known limitations
+- Android's switch to `00:00` at `endAt` (and from fixed text to the countdown
+  at a future `startAt`) is exact only when the app holds an exact-alarm
+  permission; otherwise it can be minutes late, showing negative time meanwhile.
+- The Android countdown was verified on an API 36 emulator; Android 6 (API 23),
+  where the notification shows the end time instead of a countdown, has not been
+  checked on a device or emulator.
 
 ## [0.1.0] - 2026-08-01
 
@@ -53,5 +63,6 @@ First public release.
 - iOS: JS booleans and `NaN` used to pass `progress` / timer boundary validation
 - Android: resolving the consumer's Kotlin version could make Gradle throw and fail the build
 
-[Unreleased]: https://github.com/woobottle/react-native-live-activity/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/woobottle/react-native-live-activity/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/woobottle/react-native-live-activity/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/woobottle/react-native-live-activity/releases/tag/v0.1.0
