@@ -5,6 +5,13 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Added
+- Android: `getActiveActivities()` now returns the activities whose plain
+  notifications are still showing after the app process restarts, with their
+  `referenceId` and last `content`, and `updateActivity` / `endActivity` work on
+  them. Each notification carries that snapshot in its extras. Foreground-service
+  activities still don't survive the process.
+
 ## [0.2.0] - 2026-11-17
 
 ### Added
