@@ -76,4 +76,17 @@ class LiveActivitySnapshotsTest {
 
     assertEquals(emptyList<ActivitySnapshot>(), LiveActivitySnapshots.merge(emptyList(), posted))
   }
+
+  @Test
+  fun `merge never brings back an activity ended in this process`() {
+    // cancel()은 비동기라, 방금 끝낸 활동의 알림이 아직 목록에 남아 있을 수 있다.
+    val posted = listOf(
+      PostedNotification("live_activity:ended", null, LiveActivitySnapshots.encodeContent(content("title" to "ended")))
+    )
+
+    assertEquals(
+      emptyList<ActivitySnapshot>(),
+      LiveActivitySnapshots.merge(emptyList(), posted, ended = setOf("ended"))
+    )
+  }
 }

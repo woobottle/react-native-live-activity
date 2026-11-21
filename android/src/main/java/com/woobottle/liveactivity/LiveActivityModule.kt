@@ -24,6 +24,10 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   private val foregroundActivityIds = Collections.synchronizedSet(mutableSetOf<String>())
   private val activeSnapshots = ConcurrentHashMap<String, ActivitySnapshot>()
 
+  // Activities ended in this process. NotificationManager.cancel is asynchronous, so a
+  // just-cancelled notification can still be listed; never recover one of these.
+  private val endedActivityIds = Collections.synchronizedSet(mutableSetOf<String>())
+
   override fun getName(): String = NAME
 
   @ReactMethod
@@ -107,6 +111,8 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
         // after a restart: keep the referenceId the notification carries.
         val referenceId = activeSnapshots[activityId]?.referenceId ?: postedReferenceId(activityId)
         showNotification(activityId, parsed, referenceId, rawContent)
+        // Posting it again makes it active again, even if it was ended before.
+        endedActivityIds.remove(activityId)
         activeSnapshots[activityId] = ActivitySnapshot(activityId, referenceId, rawContent)
       }
       promise.resolve(null)
@@ -134,6 +140,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
         )
       }
       activeSnapshots.remove(activityId)
+      endedActivityIds.add(activityId)
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
       promise.reject("E_INVALID_ARGUMENT", error.message, error)
@@ -155,7 +162,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     } catch (error: Exception) {
       return activeSnapshots.values.toList()
     }
-    val merged = LiveActivitySnapshots.merge(activeSnapshots.values.toList(), posted)
+    val merged = LiveActivitySnapshots.merge(activeSnapshots.values.toList(), posted, endedActivityIds.toSet())
     merged.forEach { activeSnapshots.putIfAbsent(it.activityId, it) }
     return merged
   }

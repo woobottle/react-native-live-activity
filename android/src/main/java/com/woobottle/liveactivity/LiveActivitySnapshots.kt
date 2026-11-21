@@ -48,12 +48,19 @@ internal object LiveActivitySnapshots {
   /**
    * 메모리 목록에, 화면에 있지만 목록에 없는 활동을 더한다. 같은 id면 메모리 쪽이 이긴다.
    * content를 읽을 수 없는 알림(이 라이브러리 것이 아니거나 이전 버전이 올린 것)은 뺀다.
+   *
+   * @param ended 이 프로세스에서 끝낸 활동. cancel()은 비동기라 방금 끝낸 알림이 아직
+   *   목록에 남아 있을 수 있으니 되살리지 않는다.
    */
-  fun merge(known: Collection<ActivitySnapshot>, posted: List<PostedNotification>): List<ActivitySnapshot> {
+  fun merge(
+    known: Collection<ActivitySnapshot>,
+    posted: List<PostedNotification>,
+    ended: Set<String> = emptySet()
+  ): List<ActivitySnapshot> {
     val knownIds = known.mapTo(HashSet()) { it.activityId }
     val recovered = posted.mapNotNull { notification ->
       val activityId = activityIdFromTag(notification.tag) ?: return@mapNotNull null
-      if (activityId in knownIds) return@mapNotNull null
+      if (activityId in knownIds || activityId in ended) return@mapNotNull null
       val content = notification.contentJson?.let(::decodeContent) ?: return@mapNotNull null
       knownIds.add(activityId)
       ActivitySnapshot(activityId, notification.referenceId, content)
