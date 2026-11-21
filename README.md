@@ -2,7 +2,7 @@
 
 > React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.
 
-**Status:** v0.2.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity — though only iOS actually returns still-running activities after the app process restarts; Android returns an empty array in that case. The native countdown timer (`content.timer`) renders on both platforms without JS polling — the iOS widget via `Text(timerInterval:)`, the Android notification via its built-in chronometer. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
+**Status:** v0.2.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity, including after the app process restarts (on Android, for activities whose plain notification is still showing; unreleased — see CHANGELOG). The native countdown timer (`content.timer`) renders on both platforms without JS polling — the iOS widget via `Text(timerInterval:)`, the Android notification via its built-in chronometer. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
 
 ---
 
@@ -188,7 +188,7 @@ papered over, per PRD §6 ("document platform differences honestly").
 |---|---|---|
 | `updateActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | **creates a new notification** under that id — there is no existence check before posting |
 | `endActivity` with an unknown `activityId` | rejects with `E_NOT_FOUND` | resolves silently (cancelling a non-existent notification is a no-op) |
-| `getActiveActivities()` after the app process restarts | ActivityKit owns activity state independently of the app process, so it **returns the still-running activities** | the snapshot lives only in an in-memory map inside the module, so it **returns an empty array**. What happens to the notification itself differs by how it was started: a plain notification (`NotificationManager.notify`) is posted independently of the process and typically survives; a **foreground-service** activity is more likely to disappear — if the OS restarts the service after the process dies, it's restarted with a `null` intent, and the service's `onStartCommand` calls `stopSelf()` immediately in that case rather than restoring anything |
+| `getActiveActivities()` after the app process restarts | ActivityKit owns activity state independently of the app process, so it **returns the still-running activities** | each plain notification carries its activity's `referenceId` and last `content`, so it **returns the activities whose notifications are still showing**, and `updateActivity` / `endActivity` work on them. A notification the user swiped away, or one cleared by a force stop, reboot or app update, is gone and not returned. A **foreground-service** activity is not returned: when the process dies the service stops itself and its notification goes away (if the OS restarts the service, it's restarted with a `null` intent and `onStartCommand` calls `stopSelf()`) |
 | `isSupported()` / `getPlatformCapabilities()` | `ActivityAuthorizationInfo().areActivitiesEnabled` (iOS 16.1+; `false` below that) | whether `POST_NOTIFICATIONS` is granted (Android 13+) **and** the system notification toggle is on (Android 7+) — not a single permission check |
 | `content.timer` (countdown rendering) | validated, then rendered by **your widget** via `Text(timerInterval:)`; it stops at zero at `endAt` | validated with the same rules, then rendered by **the library** in the standard notification template (chronometer countdown, fixed text otherwise). Without an exact-alarm permission the switch to `00:00` at `endAt` can be **up to ~10 minutes late**, showing negative time meanwhile. Android 6 shows the end time instead of a countdown |
 | `{ android: { foregroundService: true } }` | no-op | hosted via a foreground service. v1 supports **one at a time** — starting a second foreground activity replaces the first's notification |
@@ -206,10 +206,9 @@ doesn't change at the stale date, on Android because the alarm only redraws
 the notification. Compare `endAt` with the current time if you need to know
 whether a running timer has finished.
 
-Apps that need to recover after an Android restart should keep their own
-activity id alongside `referenceId` (e.g. in AsyncStorage) and, on resume,
-call `endActivity` followed by a fresh `startActivity` rather than relying on
-`getActiveActivities()`.
+On Android, an activity started with `{ android: { foregroundService: true } }`
+does not survive the process; apps that need one back after a restart should
+start a fresh one.
 
 ## Platform notes
 
@@ -290,7 +289,7 @@ TECH-PLAN.md            Architecture, API shape, phased build plan
 - [x] iOS Widget Extension example (Lock Screen + Dynamic Island)
 - [x] Android foreground-service opt-in
 - [x] iOS native countdown timer
-- [x] `referenceId` + `getActiveActivities` reconnect (iOS: survives a process restart; Android: resets to empty — see the table above)
+- [x] `referenceId` + `getActiveActivities` reconnect, surviving a process restart (Android: plain notifications only, unreleased — see the table above)
 - [x] JS / Swift / Kotlin unit tests + CI
 - [x] Android native countdown timer (v0.2.0)
 - [ ] Real-device (iOS 16.1+ / Android 13+) E2E verification

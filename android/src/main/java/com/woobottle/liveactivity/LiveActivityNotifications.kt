@@ -51,6 +51,8 @@ internal object LiveActivityNotifications {
    * @param progress already normalized to 0..[MAX_PROGRESS], or null for none.
    * @param timer what to show in the timer slot (header), or null for none.
    * @param token [LiveActivityTimerToken] stored in the notification's extras, or null.
+   * @param snapshot [snapshotExtras] for a plain notification, so the activity can be
+   *   recovered from it after the app process restarts; null for none.
    */
   fun build(
     context: Context,
@@ -58,7 +60,8 @@ internal object LiveActivityNotifications {
     subtitle: String?,
     progress: Int?,
     timer: TimerDisplay? = null,
-    token: String? = null
+    token: String? = null,
+    snapshot: Bundle? = null
   ): Notification {
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
       ?: Intent().setPackage(context.packageName)
@@ -115,6 +118,10 @@ internal object LiveActivityNotifications {
       builder.addExtras(Bundle().apply { putString(LiveActivityTimerToken.EXTRA, token) })
     }
 
+    if (snapshot != null) {
+      builder.addExtras(snapshot)
+    }
+
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       @Suppress("DEPRECATION")
       builder.setPriority(Notification.PRIORITY_DEFAULT)
@@ -122,6 +129,36 @@ internal object LiveActivityNotifications {
 
     return builder.build()
   }
+
+  /** The extras that let [LiveActivitySnapshots] recover the activity from its notification. */
+  internal fun snapshotExtras(referenceId: String?, content: Map<String, Any?>): Bundle =
+    Bundle().apply {
+      referenceId?.let { putString(LiveActivitySnapshots.EXTRA_REFERENCE_ID, it) }
+      putString(LiveActivitySnapshots.EXTRA_CONTENT, LiveActivitySnapshots.encodeContent(content))
+    }
+
+  /** The snapshot extras a posted notification carries, to carry them over on a redraw. */
+  internal fun snapshotExtras(posted: Notification): Bundle? {
+    val extras = posted.extras ?: return null
+    val content = extras.getString(LiveActivitySnapshots.EXTRA_CONTENT) ?: return null
+    return Bundle().apply {
+      extras.getString(LiveActivitySnapshots.EXTRA_REFERENCE_ID)?.let {
+        putString(LiveActivitySnapshots.EXTRA_REFERENCE_ID, it)
+      }
+      putString(LiveActivitySnapshots.EXTRA_CONTENT, content)
+    }
+  }
+
+  /** This app's notifications on screen, as [LiveActivitySnapshots.merge] reads them. */
+  internal fun postedNotifications(context: Context): List<PostedNotification> =
+    notificationManager(context).activeNotifications.map {
+      val extras = it.notification.extras
+      PostedNotification(
+        tag = it.tag,
+        referenceId = extras?.getString(LiveActivitySnapshots.EXTRA_REFERENCE_ID),
+        contentJson = extras?.getString(LiveActivitySnapshots.EXTRA_CONTENT)
+      )
+    }
 
   fun notificationManager(context: Context): NotificationManager =
     context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

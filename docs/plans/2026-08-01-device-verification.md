@@ -273,6 +273,22 @@ cd example/android && ./gradlew :woobottle_react-native-live-activity:testDebugU
       ✅ 2026-11-16 에뮬레이터(API 36)
 - [ ] (가능하면) Android 6(API 23) 기기/에뮬레이터 → 카운트다운 대신 종료 시각 표시
 
+## Android 프로세스 재시작 후 재연결 (2026-11-22 추가, 미배포)
+
+> 근거: `docs/superpowers/specs/2026-11-22-android-reconnect-design.md`. 스냅샷
+> 인코딩과 합치기 규칙은 JVM 테스트로 고정돼 있고, 알림·재시작 동작은 기기에서만
+> 확인할 수 있다. 프로세스는 `adb shell run-as <패키지> kill -9 <pid>`로 죽인다(디버그 빌드).
+
+- [x] `referenceId`·timer가 있는 활동 Start → 프로세스만 죽임 → 재실행 → `getActiveActivities()`가
+      `activityId`·`referenceId`·`content`(timer 숫자 포함)를 돌려준다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [x] 조회 없이 기억해 둔 id로 `updateActivity` → 알림의 `referenceId`가 유지된다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [x] 되찾은 활동에 `endActivity` → 알림이 사라지고 목록에서도 빠진다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [x] 프로세스가 죽은 동안 timer가 `endAt`을 지나 알람이 `00:00`으로 다시 그림 → 스냅샷이 유지돼 여전히
+      되찾아진다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [x] 포그라운드 서비스 활동 → 프로세스가 죽으면 알림이 사라지고 목록에 없다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [x] 한글 subtitle·progress가 있는 content가 그대로 돌아온다 — ✅ 2026-11-22 에뮬레이터(API 36)
+- [ ] 알림을 스와이프로 지움 → 재실행 → 목록에 없다 (에뮬레이터에서 스와이프 자동화가 먹지 않아 미확인)
+
 ## [배포 후 전용] 게시된 패키지 설치 경로 검증
 
 > **이 항목은 v0.1.0이 npm에 게시된 뒤에만 수행 가능하다 (Task 10 이후).**
