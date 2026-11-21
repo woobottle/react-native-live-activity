@@ -34,7 +34,9 @@ class LiveActivityTimerReceiver : BroadcastReceiver() {
         payload.timer, System.currentTimeMillis(), Build.VERSION.SDK_INT
       )
       val notification = LiveActivityNotifications.build(
-        context, payload.title, payload.subtitle, payload.progress, presentation.display, payload.token
+        context, payload.title, payload.subtitle, payload.progress, presentation.display, payload.token,
+        // 재시작 후 되찾을 수 있도록 일반 알림의 스냅샷을 그대로 옮긴다.
+        snapshot = if (tag == null) null else LiveActivityNotifications.snapshotExtras(posted.notification)
       )
       if (tag == null) {
         manager.notify(id, notification)

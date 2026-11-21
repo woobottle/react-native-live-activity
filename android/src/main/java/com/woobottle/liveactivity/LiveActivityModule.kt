@@ -42,7 +42,7 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun getActiveActivities(promise: Promise) {
     val activities = WritableNativeArray()
-    activeSnapshots.values.forEach { snapshot ->
+    activeSnapshotsWithRecovered().forEach { snapshot ->
       val activity = WritableNativeMap()
       activity.putString("activityId", snapshot.activityId)
       snapshot.referenceId?.let { activity.putString("referenceId", it) }
@@ -60,19 +60,21 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
       requireNotificationPermission()
       val parsed = LiveActivityContentParser.parse(content)
 
+      val referenceId = options.optionalReferenceId()
+      val rawContent = content.toHashMap()
       if (isForegroundRequested(options)) {
         LiveActivityForegroundService.start(
           context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
         foregroundActivityIds.add(activityId)
       } else {
-        showNotification(activityId, parsed)
+        showNotification(activityId, parsed, referenceId, rawContent)
       }
 
       activeSnapshots[activityId] = ActivitySnapshot(
         activityId = activityId,
-        referenceId = options.optionalReferenceId(),
-        content = content.toHashMap()
+        referenceId = referenceId,
+        content = rawContent
       )
       val result = WritableNativeMap()
       result.putString("activityId", activityId)
@@ -92,15 +94,20 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
       requireValidActivityId(activityId)
       val parsed = LiveActivityContentParser.parse(content)
 
+      val rawContent = content.toHashMap()
       if (foregroundActivityIds.contains(activityId)) {
         LiveActivityForegroundService.start(
           context, activityId, parsed.title, parsed.subtitle, parsed.progress, parsed.timer
         )
+        activeSnapshots.computeIfPresent(activityId) { _, snapshot ->
+          snapshot.copy(content = rawContent)
+        }
       } else {
-        showNotification(activityId, parsed)
-      }
-      activeSnapshots.computeIfPresent(activityId) { _, snapshot ->
-        snapshot.copy(content = content.toHashMap())
+        // An activity missing from the map may be one recovered from its notification
+        // after a restart: keep the referenceId the notification carries.
+        val referenceId = activeSnapshots[activityId]?.referenceId ?: postedReferenceId(activityId)
+        showNotification(activityId, parsed, referenceId, rawContent)
+        activeSnapshots[activityId] = ActivitySnapshot(activityId, referenceId, rawContent)
       }
       promise.resolve(null)
     } catch (error: IllegalArgumentException) {
@@ -138,7 +145,36 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
   private val context: ReactApplicationContext
     get() = reactApplicationContext
 
-  private fun showNotification(activityId: String, content: LiveActivityContentParser.ParsedContent) {
+  /**
+   * The in-memory snapshots plus, after a process restart, the activities whose plain
+   * notifications are still on screen. Recovered ones join the map.
+   */
+  private fun activeSnapshotsWithRecovered(): List<ActivitySnapshot> {
+    val posted = try {
+      LiveActivityNotifications.postedNotifications(context)
+    } catch (error: Exception) {
+      return activeSnapshots.values.toList()
+    }
+    val merged = LiveActivitySnapshots.merge(activeSnapshots.values.toList(), posted)
+    merged.forEach { activeSnapshots.putIfAbsent(it.activityId, it) }
+    return merged
+  }
+
+  private fun postedReferenceId(activityId: String): String? =
+    try {
+      LiveActivityNotifications.postedNotifications(context)
+        .firstOrNull { it.tag == LiveActivityNotifications.tag(activityId) }
+        ?.referenceId
+    } catch (error: Exception) {
+      null
+    }
+
+  private fun showNotification(
+    activityId: String,
+    content: LiveActivityContentParser.ParsedContent,
+    referenceId: String?,
+    rawContent: Map<String, Any?>
+  ) {
     requireValidActivityId(activityId)
     requireNotificationPermission()
     LiveActivityNotifications.ensureChannel(context)
@@ -148,7 +184,8 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     }
     val token = content.timer?.let { LiveActivityTimerToken.next() }
     val notification = LiveActivityNotifications.build(
-      context, content.title, content.subtitle, content.progress, timer?.display, token
+      context, content.title, content.subtitle, content.progress, timer?.display, token,
+      snapshot = LiveActivityNotifications.snapshotExtras(referenceId, rawContent)
     )
     LiveActivityNotifications.notificationManager(context).notify(
       LiveActivityNotifications.tag(activityId),
@@ -166,12 +203,6 @@ class LiveActivityModule(reactContext: ReactApplicationContext) :
     }
     LiveActivityTimerScheduler.sync(context, payload, activityId, timer)
   }
-
-  private data class ActivitySnapshot(
-    val activityId: String,
-    val referenceId: String?,
-    val content: HashMap<String, Any>
-  )
 
   private fun isForegroundRequested(options: ReadableMap?): Boolean {
     if (options == null || !options.hasKey("android") || options.isNull("android")) {
