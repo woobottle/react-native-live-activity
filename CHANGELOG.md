@@ -5,12 +5,19 @@ This project's format is based on [Keep a Changelog](https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-22
+
 ### Added
 - Android: `getActiveActivities()` now returns the activities whose plain
   notifications are still showing after the app process restarts, with their
   `referenceId` and last `content`, and `updateActivity` / `endActivity` work on
   them. Each notification carries that snapshot in its extras. Foreground-service
   activities still don't survive the process.
+
+### Known limitations
+- The Android reconnect was verified on an API 36 emulator except for one case:
+  that a notification swiped away before the restart is not returned. Android 6
+  (API 23) has not been checked.
 
 ## [0.2.0] - 2026-11-17
 
@@ -70,6 +77,7 @@ First public release.
 - iOS: JS booleans and `NaN` used to pass `progress` / timer boundary validation
 - Android: resolving the consumer's Kotlin version could make Gradle throw and fail the build
 
-[Unreleased]: https://github.com/woobottle/react-native-live-activity/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/woobottle/react-native-live-activity/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/woobottle/react-native-live-activity/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/woobottle/react-native-live-activity/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/woobottle/react-native-live-activity/releases/tag/v0.1.0

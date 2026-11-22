@@ -2,7 +2,7 @@
 
 > React Native library for iOS Live Activity (ActivityKit) and Android live update style notifications, behind a unified JS API.
 
-**Status:** v0.2.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity, including after the app process restarts (on Android, for activities whose plain notification is still showing; unreleased — see CHANGELOG). The native countdown timer (`content.timer`) renders on both platforms without JS polling — the iOS widget via `Text(timerInterval:)`, the Android notification via its built-in chronometer. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
+**Status:** v0.3.0. Both iOS Live Activity (ActivityKit) and the Android ongoing notification support the full start/update/end lifecycle, and `referenceId` + `getActiveActivities` can reconnect to an activity, including after the app process restarts (on Android, for activities whose plain notification is still showing). The native countdown timer (`content.timer`) renders on both platforms without JS polling — the iOS widget via `Text(timerInterval:)`, the Android notification via its built-in chronometer. JS, Swift, and Kotlin each have unit tests running in CI. Real-device end-to-end verification has not been performed yet. See the **Platform behavior differences** table below for where the two platforms genuinely diverge.
 
 ---
 
@@ -289,7 +289,7 @@ TECH-PLAN.md            Architecture, API shape, phased build plan
 - [x] iOS Widget Extension example (Lock Screen + Dynamic Island)
 - [x] Android foreground-service opt-in
 - [x] iOS native countdown timer
-- [x] `referenceId` + `getActiveActivities` reconnect, surviving a process restart (Android: plain notifications only, unreleased — see the table above)
+- [x] `referenceId` + `getActiveActivities` reconnect, surviving a process restart (Android: plain notifications only, v0.3.0 — see the table above)
 - [x] JS / Swift / Kotlin unit tests + CI
 - [x] Android native countdown timer (v0.2.0)
 - [ ] Real-device (iOS 16.1+ / Android 13+) E2E verification
